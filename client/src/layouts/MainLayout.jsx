@@ -38,14 +38,16 @@ export default function MainLayout() {
             {/* Sidebar */}
             <aside className={`sidebar glass-panel ${isMobileMenuOpen ? 'open' : ''} ${isSidebarCollapsed ? 'collapsed' : ''}`} style={{
                 width: isSidebarCollapsed ? '60px' : '260px',
-                height: '100vh',
+                minHeight: '100vh',
+                maxHeight: '100vh',
                 position: 'sticky',
                 top: 0,
                 padding: isSidebarCollapsed ? '1rem 0.5rem' : '1.5rem',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '2rem',
-                transition: 'width 0.3s ease'
+                transition: 'width 0.3s ease',
+                overflow: 'hidden'
             }}>
                 {/* Toggle Button */}
                 <button
@@ -83,7 +85,16 @@ export default function MainLayout() {
                     {isSidebarCollapsed ? 'S' : `SCGM ${role === 'admin' ? 'Admin' : 'Usuario'}`}
                 </div>
 
-                <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <nav style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem',
+                    flex: 1,
+                    overflowY: 'auto',
+                    overflowX: 'hidden',
+                    paddingRight: '0.5rem',
+                    marginRight: '-0.5rem'
+                }}>
                     {role === 'admin' && (
                         <Link to="/" className="nav-link" title="Dashboard">
                             {isSidebarCollapsed ? '📊' : 'Dashboard'}
@@ -173,6 +184,22 @@ export default function MainLayout() {
         .nav-link:hover {
           background: rgba(255, 255, 255, 0.05);
           color: white;
+        }
+        
+        /* Custom Scrollbar for Navigation */
+        nav::-webkit-scrollbar {
+          width: 6px;
+        }
+        nav::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 3px;
+        }
+        nav::-webkit-scrollbar-thumb {
+          background: rgba(99, 102, 241, 0.5);
+          border-radius: 3px;
+        }
+        nav::-webkit-scrollbar-thumb:hover {
+          background: rgba(99, 102, 241, 0.7);
         }
         
         @media (max-width: 768px) {

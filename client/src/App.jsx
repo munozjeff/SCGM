@@ -18,9 +18,8 @@ import UserManagement from './pages/UserManagement';
 import DatabaseView from './pages/DatabaseView';
 import ProtectedRoute from './layouts/ProtectedRoute';
 import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
 
-// Placeholder Pages
-const Dashboard = () => <div className="glass-panel" style={{ padding: '2rem' }}><h2>Dashboard</h2><p>Bienvenido al sistema de gestión.</p></div>;
 
 function AppContent() {
   const dispatch = useDispatch();
