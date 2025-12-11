@@ -130,6 +130,131 @@ export default function Dashboard() {
         setMetrics(calculatedMetrics);
     };
 
+    // Componente: Pie Chart
+    const PieChart = ({ data }) => {
+        const size = 200;
+        const center = size / 2;
+        const radius = size / 2 - 10;
+
+        // Paleta de colores vibrantes
+        const colors = [
+            '#6366f1', // Indigo
+            '#ec4899', // Pink
+            '#8b5cf6', // Purple
+            '#14b8a6', // Teal
+            '#f59e0b', // Amber
+            '#ef4444', // Red
+            '#10b981', // Green
+            '#3b82f6', // Blue
+            '#f97316', // Orange
+            '#06b6d4'  // Cyan
+        ];
+
+        // Pre-calculate all slices
+        const slices = [];
+        let currentAngle = -90; // Start from top
+
+        data.forEach((item, index) => {
+            const percentage = parseFloat(item.percentage);
+            const angle = (percentage / 100) * 360;
+            const startAngle = currentAngle;
+            const endAngle = currentAngle + angle;
+
+            // Convert to radians
+            const startRad = (startAngle * Math.PI) / 180;
+            const endRad = (endAngle * Math.PI) / 180;
+
+            // Calculate arc points
+            const x1 = center + radius * Math.cos(startRad);
+            const y1 = center + radius * Math.sin(startRad);
+            const x2 = center + radius * Math.cos(endRad);
+            const y2 = center + radius * Math.sin(endRad);
+
+            // Large arc flag
+            const largeArc = angle > 180 ? 1 : 0;
+
+            // Create path
+            const path = [
+                `M ${center} ${center}`,
+                `L ${x1} ${y1}`,
+                `A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}`,
+                'Z'
+            ].join(' ');
+
+            slices.push({
+                path,
+                color: colors[index % colors.length],
+                item
+            });
+
+            currentAngle = endAngle;
+        });
+
+        return (
+            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
+                {/* Pie Chart SVG */}
+                <svg width={size} height={size} style={{ flexShrink: 0 }}>
+                    {slices.map((slice, index) => (
+                        <g key={index}>
+                            <path
+                                d={slice.path}
+                                fill={slice.color}
+                                stroke="rgba(255, 255, 255, 0.1)"
+                                strokeWidth="2"
+                                style={{
+                                    transition: 'opacity 0.2s',
+                                    cursor: 'pointer'
+                                }}
+                                onMouseEnter={(e) => e.target.style.opacity = '0.8'}
+                                onMouseLeave={(e) => e.target.style.opacity = '1'}
+                            >
+                                <title>{`${slice.item.status}: ${slice.item.percentage}% (${slice.item.count} ventas)`}</title>
+                            </path>
+                        </g>
+                    ))}
+                </svg>
+
+                {/* Legend */}
+                <div style={{ flex: 1, minWidth: '150px' }}>
+                    {slices.map((slice, index) => (
+                        <div key={index} style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            marginBottom: '0.5rem',
+                            fontSize: '0.85rem'
+                        }}>
+                            <div style={{
+                                width: '12px',
+                                height: '12px',
+                                borderRadius: '2px',
+                                background: slice.color,
+                                flexShrink: 0
+                            }} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{
+                                    fontWeight: '500',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
+                                }}>
+                                    {slice.item.status}
+                                </div>
+                                <div style={{
+                                    fontSize: '0.75rem',
+                                    color: 'var(--text-muted)'
+                                }}>
+                                    {slice.item.percentage}% ({slice.item.count})
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
+
     // Componente reutilizable: Metric Card
     const MetricCard = ({ icon, title, value, subtitle, color, children }) => {
         const colorStyles = {
@@ -274,7 +399,8 @@ export default function Dashboard() {
                 <div style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-                    gap: '1.5rem'
+                    gap: '1.5rem',
+                    alignItems: 'stretch'
                 }}>
                     {/* Métrica 1: SIMs Activos Recientes */}
                     <MetricCard
@@ -320,49 +446,19 @@ export default function Dashboard() {
                         subtitle="Estados únicos encontrados"
                         color="info"
                     >
-                        <div style={{ marginTop: '1rem', maxHeight: '200px', overflowY: 'auto' }}>
-                            {metrics.simStatusDistribution.map((item, index) => (
-                                <div key={index} style={{
-                                    marginBottom: '0.75rem',
-                                    padding: '0.5rem',
-                                    background: 'rgba(255, 255, 255, 0.03)',
-                                    borderRadius: 'var(--radius-md)'
+                        <div style={{ marginTop: '1rem' }}>
+                            {metrics.simStatusDistribution.length > 0 ? (
+                                <PieChart data={metrics.simStatusDistribution} />
+                            ) : (
+                                <div style={{
+                                    textAlign: 'center',
+                                    padding: '2rem',
+                                    color: 'var(--text-muted)',
+                                    fontSize: '0.9rem'
                                 }}>
-                                    <div style={{
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        marginBottom: '0.25rem'
-                                    }}>
-                                        <span style={{ fontSize: '0.85rem', fontWeight: '500' }}>
-                                            {item.status}
-                                        </span>
-                                        <span style={{ fontSize: '0.85rem', color: 'var(--primary)' }}>
-                                            {item.percentage}%
-                                        </span>
-                                    </div>
-                                    <div style={{
-                                        width: '100%',
-                                        height: '6px',
-                                        background: 'rgba(255, 255, 255, 0.1)',
-                                        borderRadius: '3px',
-                                        overflow: 'hidden'
-                                    }}>
-                                        <div style={{
-                                            width: `${item.percentage}%`,
-                                            height: '100%',
-                                            background: 'linear-gradient(90deg, var(--primary), var(--accent))',
-                                            transition: 'width 0.5s ease'
-                                        }} />
-                                    </div>
-                                    <div style={{
-                                        fontSize: '0.7rem',
-                                        color: 'var(--text-muted)',
-                                        marginTop: '0.25rem'
-                                    }}>
-                                        {item.count} ventas
-                                    </div>
+                                    No hay datos para mostrar
                                 </div>
-                            ))}
+                            )}
                         </div>
                     </MetricCard>
                 </div>
