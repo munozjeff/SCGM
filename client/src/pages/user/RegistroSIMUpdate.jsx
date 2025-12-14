@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getSalesByMonth, getAllMonths, updateIncome } from '../../services/SalesService';
+import { getAllMonths, updateIncome, listenToSalesByMonth } from '../../services/SalesService';
 import { Scanner } from '../../components/BarcodeScanner';
 import * as XLSX from 'xlsx';
 
@@ -20,10 +20,21 @@ export default function RegistroSIMUpdate() {
         loadMonths();
     }, []);
 
+    // Listen to real-time changes
     useEffect(() => {
-        if (selectedMonth) {
-            loadSales();
-        }
+        if (!selectedMonth) return;
+
+        setLoading(true);
+
+        const unsubscribe = listenToSalesByMonth(selectedMonth, (salesData) => {
+            setSales(salesData);
+            setLoading(false);
+        });
+
+        // Cleanup listener
+        return () => {
+            if (unsubscribe) unsubscribe();
+        };
     }, [selectedMonth]);
 
     useEffect(() => {
@@ -49,20 +60,7 @@ export default function RegistroSIMUpdate() {
         }
     };
 
-    const loadSales = async () => {
-        if (!selectedMonth) return;
 
-        setLoading(true);
-        try {
-            const salesData = await getSalesByMonth(selectedMonth);
-            setSales(salesData);
-        } catch (error) {
-            console.error('Error loading sales:', error);
-            alert('Error al cargar datos');
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const handleScanMatch = (scannedIccid) => {
         if (!scannedIccid) return;
@@ -100,7 +98,7 @@ export default function RegistroSIMUpdate() {
             const res = await updateIncome(selectedMonth, [payload]);
             setResult(res);
             if (res.updated > 0) {
-                loadSales();  // Reload data
+                // No need to reload - real-time listener will update automatically
                 setEditingRecord(null);
                 setScanResult(null);
                 setTimeout(() => setResult(null), 3000);
@@ -174,7 +172,7 @@ export default function RegistroSIMUpdate() {
 
                     const res = await updateIncome(selectedMonth, updates);
                     setResult(res);
-                    loadSales();
+                    // Real-time listener will update automatically
                     setTimeout(() => setResult(null), 3000);
                 } catch (err) {
                     console.error(err);
