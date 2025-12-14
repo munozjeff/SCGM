@@ -4,6 +4,7 @@ import { ref, set, get, remove } from "firebase/database";
 
 /**
  * Crea un nuevo usuario en Firebase Auth y Realtime DB
+ * Usa la API REST de Firebase para evitar cerrar la sesión del admin
  * @param {string} email - Email del usuario
  * @param {string} password - Contraseña
  * @param {string} role - 'admin' o 'user'
@@ -11,19 +12,41 @@ import { ref, set, get, remove } from "firebase/database";
  */
 export const createUser = async (email, password, role = 'user') => {
     try {
-        // Crear usuario en Firebase Auth
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
+        const API_KEY = import.meta.env.VITE_FIREBASE_API_KEY;
+
+        // Crear usuario usando Firebase REST API
+        const response = await fetch(
+            `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${API_KEY}`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email: email,
+                    password: password,
+                    returnSecureToken: true
+                })
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error?.message || 'Error creating user');
+        }
+
+        const uid = data.localId;
 
         // Guardar datos adicionales en Realtime DB
-        await set(ref(db, `users/${user.uid}`), {
+        await set(ref(db, `users/${uid}`), {
             email: email,
             role: role,
             createdAt: new Date().toISOString()
         });
 
         return {
-            uid: user.uid,
+            uid: uid,
             email: email,
             role: role
         };

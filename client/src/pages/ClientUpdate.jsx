@@ -169,17 +169,21 @@ export default function ClientUpdate() {
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                             <div>
-                                <label>Contacto 1</label>
+                                <label>Contacto 1 (Empieza por 3, 10 dígitos)</label>
                                 <input
                                     value={formData.CONTACTO_1}
                                     onChange={e => setFormData({ ...formData, CONTACTO_1: e.target.value })}
+                                    pattern="3\d{9}"
+                                    title="Debe empezar por 3 y tener 10 dígitos"
                                 />
                             </div>
                             <div>
-                                <label>Contacto 2</label>
+                                <label>Contacto 2 (Empieza por 3, 10 dígitos)</label>
                                 <input
                                     value={formData.CONTACTO_2}
                                     onChange={e => setFormData({ ...formData, CONTACTO_2: e.target.value })}
+                                    pattern="3\d{9}"
+                                    title="Debe empezar por 3 y tener 10 dígitos"
                                 />
                             </div>
                         </div>

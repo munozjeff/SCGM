@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getSalesByMonth, getAllMonths } from '../services/SalesService';
+import * as XLSX from 'xlsx';
 
 export default function Dashboard() {
     const [months, setMonths] = useState([]);
@@ -58,48 +59,57 @@ export default function Dashboard() {
         }
     };
 
-    // Métrica 1: SIMs Activos Recientes (ESTADO_SIM=ACTIVO, FECHA_ACTIVACION ≥5 días)
-    const calculateActiveSims = (salesData) => {
-        return salesData.filter(sale => {
-            if (sale.ESTADO_SIM !== 'ACTIVO') return false;
-            if (!sale.FECHA_ACTIVACION) return false;
+    // --- Lógica de Filtros (Retornan Arrays) ---
 
-            const daysDiff = getDaysDifference(sale.FECHA_ACTIVACION);
-            return daysDiff !== null && daysDiff >= 5;
-        }).length;
+    // 1. SIMs Activas (ESTADO_SIM=ACTIVA)
+    const filterActiveSims = (salesData) => {
+        return salesData.filter(sale => sale.ESTADO_SIM === 'ACTIVA');
     };
 
-    // Métrica 2: Gestión Pendiente (NOVEDAD_EN_GESTION vacío, FECHA_INGRESO >5 días)
-    const calculatePendingManagement = (salesData) => {
+    // 2. Gestión Pendiente (ESTADO=ACTIVA y NOVEDAD_EN_GESTION vacío)
+    const filterPendingManagement = (salesData) => {
         return salesData.filter(sale => {
+            const isActive = sale.ESTADO_SIM === 'ACTIVA';
             const hasNoManagement = !sale.NOVEDAD_EN_GESTION || sale.NOVEDAD_EN_GESTION.trim() === '';
-            if (!hasNoManagement) return false;
-
-            if (!sale.FECHA_INGRESO) return false;
-            const daysDiff = getDaysDifference(sale.FECHA_INGRESO);
-
-            return daysDiff !== null && daysDiff > 5;
-        }).length;
+            return isActive && hasNoManagement;
+        });
     };
 
-    // Métrica 3: Ventas con Novedades (DESCRIPCION_NOVEDAD no vacío)
-    const calculateSalesWithIssues = (salesData) => {
+    // 3. Ventas con Novedades (DESCRIPCION_NOVEDAD no vacío)
+    const filterSalesWithIssues = (salesData) => {
         return salesData.filter(sale => {
             return sale.DESCRIPCION_NOVEDAD && sale.DESCRIPCION_NOVEDAD.trim() !== '';
-        }).length;
+        });
     };
 
-    // Métrica 4: Distribución de Estados SIM (porcentajes)
+    // 4. Sin Fecha de Activación (FECHA_ACTIVACION vacío)
+    const filterNoActivationDate = (salesData) => {
+        return salesData.filter(sale => !sale.FECHA_ACTIVACION || sale.FECHA_ACTIVACION.trim() === '');
+    };
+
+    // 5. Estado Vacío (ESTADO_SIM vacío)
+    const filterEmptyStatus = (salesData) => {
+        return salesData.filter(sale => !sale.ESTADO_SIM || sale.ESTADO_SIM.trim() === '');
+    };
+
+    // 6. Alertas de Saldo Alto
+    const filterHighBalance = (salesData) => {
+        return salesData.filter(sale => {
+            const saldo = parseFloat(sale.SALDO) || 0;
+            const abono = parseFloat(sale.ABONO) || 0;
+            return saldo > 10000 && abono <= 10000;
+        });
+    };
+
+    // Distribución (Solo cálculo, no es filtro de exportación directa en formato lista simple igual que las otras)
     const calculateSimStatusDistribution = (salesData) => {
         const total = salesData.length;
         if (total === 0) return [];
-
         const statusCount = {};
         salesData.forEach(sale => {
             const status = sale.ESTADO_SIM || 'Sin Estado';
             statusCount[status] = (statusCount[status] || 0) + 1;
         });
-
         return Object.entries(statusCount).map(([status, count]) => ({
             status,
             count,
@@ -107,27 +117,44 @@ export default function Dashboard() {
         })).sort((a, b) => b.count - a.count);
     };
 
-    // Métrica 5: Alertas de Saldo Alto (SALDO >10000, ABONO ≤10000)
-    const calculateHighBalanceAlerts = (salesData) => {
-        return salesData.filter(sale => {
-            const saldo = parseFloat(sale.SALDO) || 0;
-            const abono = parseFloat(sale.ABONO) || 0;
-
-            return saldo > 10000 && abono <= 10000;
-        }).length;
-    };
-
-    // Calcula todas las métricas
     const calculateAllMetrics = (salesData) => {
         const calculatedMetrics = {
-            activeSims: calculateActiveSims(salesData),
-            pendingManagement: calculatePendingManagement(salesData),
-            salesWithIssues: calculateSalesWithIssues(salesData),
+            activeSims: filterActiveSims(salesData),
+            pendingManagement: filterPendingManagement(salesData),
+            salesWithIssues: filterSalesWithIssues(salesData),
+            noActivationDate: filterNoActivationDate(salesData),
+            emptyStatus: filterEmptyStatus(salesData),
+            highBalanceAlerts: filterHighBalance(salesData),
             simStatusDistribution: calculateSimStatusDistribution(salesData),
-            highBalanceAlerts: calculateHighBalanceAlerts(salesData),
             totalSales: salesData.length
         };
         setMetrics(calculatedMetrics);
+    };
+
+    const handleExport = (data, fileName) => {
+        if (!data || data.length === 0) {
+            alert("No hay datos para exportar.");
+            return;
+        }
+
+        // Limpieza básica para exportación
+        const exportData = data.map(item => ({
+            NUMERO: item.NUMERO,
+            ICCID: item.ICCID,
+            ESTADO_SIM: item.ESTADO_SIM,
+            TIPO_VENTA: item.TIPO_VENTA,
+            FECHA_INGRESO: item.FECHA_INGRESO,
+            FECHA_ACTIVACION: item.FECHA_ACTIVACION,
+            NOVEDAD_EN_GESTION: item.NOVEDAD_EN_GESTION,
+            NOMBRE: item.NOMBRE,
+            SALDO: item.SALDO,
+            ABONO: item.ABONO
+        }));
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        XLSX.utils.book_append_sheet(wb, ws, "Datos");
+        XLSX.writeFile(wb, `${fileName}_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
     // Componente: Pie Chart
@@ -135,117 +162,45 @@ export default function Dashboard() {
         const size = 200;
         const center = size / 2;
         const radius = size / 2 - 10;
+        const colors = ['#6366f1', '#ec4899', '#8b5cf6', '#14b8a6', '#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#f97316', '#06b6d4'];
 
-        // Paleta de colores vibrantes
-        const colors = [
-            '#6366f1', // Indigo
-            '#ec4899', // Pink
-            '#8b5cf6', // Purple
-            '#14b8a6', // Teal
-            '#f59e0b', // Amber
-            '#ef4444', // Red
-            '#10b981', // Green
-            '#3b82f6', // Blue
-            '#f97316', // Orange
-            '#06b6d4'  // Cyan
-        ];
-
-        // Pre-calculate all slices
-        const slices = [];
-        let currentAngle = -90; // Start from top
-
-        data.forEach((item, index) => {
+        let currentAngle = -90;
+        const slices = data.map((item, index) => {
             const percentage = parseFloat(item.percentage);
             const angle = (percentage / 100) * 360;
             const startAngle = currentAngle;
             const endAngle = currentAngle + angle;
+            currentAngle = endAngle;
 
-            // Convert to radians
-            const startRad = (startAngle * Math.PI) / 180;
-            const endRad = (endAngle * Math.PI) / 180;
+            const xfa = (angle > 180) ? 1 : 0;
+            const x1 = center + radius * Math.cos(Math.PI * startAngle / 180);
+            const y1 = center + radius * Math.sin(Math.PI * startAngle / 180);
+            const x2 = center + radius * Math.cos(Math.PI * endAngle / 180);
+            const y2 = center + radius * Math.sin(Math.PI * endAngle / 180);
 
-            // Calculate arc points
-            const x1 = center + radius * Math.cos(startRad);
-            const y1 = center + radius * Math.sin(startRad);
-            const x2 = center + radius * Math.cos(endRad);
-            const y2 = center + radius * Math.sin(endRad);
-
-            // Large arc flag
-            const largeArc = angle > 180 ? 1 : 0;
-
-            // Create path
-            const path = [
-                `M ${center} ${center}`,
-                `L ${x1} ${y1}`,
-                `A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}`,
-                'Z'
-            ].join(' ');
-
-            slices.push({
-                path,
+            return {
+                path: `M${center},${center} L${x1},${y1} A${radius},${radius} 0 ${xfa},1 ${x2},${y2} Z`,
                 color: colors[index % colors.length],
                 item
-            });
-
-            currentAngle = endAngle;
+            };
         });
 
         return (
             <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
-                {/* Pie Chart SVG */}
                 <svg width={size} height={size} style={{ flexShrink: 0 }}>
-                    {slices.map((slice, index) => (
-                        <g key={index}>
-                            <path
-                                d={slice.path}
-                                fill={slice.color}
-                                stroke="rgba(255, 255, 255, 0.1)"
-                                strokeWidth="2"
-                                style={{
-                                    transition: 'opacity 0.2s',
-                                    cursor: 'pointer'
-                                }}
-                                onMouseEnter={(e) => e.target.style.opacity = '0.8'}
-                                onMouseLeave={(e) => e.target.style.opacity = '1'}
-                            >
-                                <title>{`${slice.item.status}: ${slice.item.percentage}% (${slice.item.count} ventas)`}</title>
-                            </path>
-                        </g>
+                    {slices.map((slice, i) => (
+                        <path key={i} d={slice.path} fill={slice.color} stroke="rgba(255,255,255,0.1)" strokeWidth="2">
+                            <title>{`${slice.item.status}: ${slice.item.percentage}%`}</title>
+                        </path>
                     ))}
                 </svg>
-
-                {/* Legend */}
                 <div style={{ flex: 1, minWidth: '150px' }}>
-                    {slices.map((slice, index) => (
-                        <div key={index} style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                            marginBottom: '0.5rem',
-                            fontSize: '0.85rem'
-                        }}>
-                            <div style={{
-                                width: '12px',
-                                height: '12px',
-                                borderRadius: '2px',
-                                background: slice.color,
-                                flexShrink: 0
-                            }} />
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{
-                                    fontWeight: '500',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap'
-                                }}>
-                                    {slice.item.status}
-                                </div>
-                                <div style={{
-                                    fontSize: '0.75rem',
-                                    color: 'var(--text-muted)'
-                                }}>
-                                    {slice.item.percentage}% ({slice.item.count})
-                                </div>
+                    {slices.map((slice, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', fontSize: '0.85rem' }}>
+                            <div style={{ width: '12px', height: '12px', borderRadius: '2px', background: slice.color }} />
+                            <div>
+                                <div style={{ fontWeight: '500' }}>{slice.item.status}</div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{slice.item.percentage}% ({slice.item.count})</div>
                             </div>
                         </div>
                     ))}
@@ -254,65 +209,57 @@ export default function Dashboard() {
         );
     };
 
-
-    // Componente reutilizable: Metric Card
-    const MetricCard = ({ icon, title, value, subtitle, color, children }) => {
+    // Componente Metric Card (Flexible y Uniforme)
+    const MetricCard = ({ icon, title, data, subtitle, color, children, onExport }) => {
         const colorStyles = {
-            success: {
-                bg: 'rgba(34, 197, 94, 0.1)',
-                border: 'rgba(34, 197, 94, 0.3)',
-                text: '#4ade80'
-            },
-            warning: {
-                bg: 'rgba(234, 179, 8, 0.1)',
-                border: 'rgba(234, 179, 8, 0.3)',
-                text: '#facc15'
-            },
-            danger: {
-                bg: 'rgba(239, 68, 68, 0.1)',
-                border: 'rgba(239, 68, 68, 0.3)',
-                text: '#f87171'
-            },
-            info: {
-                bg: 'rgba(99, 102, 241, 0.1)',
-                border: 'rgba(99, 102, 241, 0.3)',
-                text: '#818cf8'
-            }
+            success: { bg: 'rgba(34, 197, 94, 0.1)', border: 'rgba(34, 197, 94, 0.3)', text: '#4ade80' },
+            warning: { bg: 'rgba(234, 179, 8, 0.1)', border: 'rgba(234, 179, 8, 0.3)', text: '#facc15' },
+            danger: { bg: 'rgba(239, 68, 68, 0.1)', border: 'rgba(239, 68, 68, 0.3)', text: '#f87171' },
+            info: { bg: 'rgba(99, 102, 241, 0.1)', border: 'rgba(99, 102, 241, 0.3)', text: '#818cf8' }
         };
 
         const style = colorStyles[color] || colorStyles.info;
+        const count = Array.isArray(data) ? data.length : data; // Handle array or direct number (for distribution)
 
         return (
             <div className="glass-panel" style={{
                 padding: '1.5rem',
                 background: style.bg,
                 border: `1px solid ${style.border}`,
-                transition: 'transform 0.2s, box-shadow 0.2s'
-            }}
-                onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-4px)';
-                    e.currentTarget.style.boxShadow = '0 12px 24px rgba(0,0,0,0.4)';
-                }}
-                onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-                    <div style={{ fontSize: '2rem' }}>{icon}</div>
-                    <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
-                            {title}
-                        </div>
-                        <div style={{ fontSize: '2rem', fontWeight: 'bold', color: style.text }}>
-                            {value}
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100%', // Uniform height
+                transition: 'transform 0.2s',
+                position: 'relative'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div style={{ fontSize: '2rem' }}>{icon}</div>
+                        <div>
+                            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{title}</div>
+                            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: style.text }}>{count}</div>
                         </div>
                     </div>
+                    {onExport && (
+                        <button
+                            onClick={() => onExport(data, title.replace(/\s+/g, '_'))}
+                            title="Exportar a Excel"
+                            style={{
+                                background: 'rgba(255,255,255,0.1)',
+                                border: 'none',
+                                borderRadius: '4px',
+                                padding: '0.4rem',
+                                cursor: 'pointer',
+                                color: style.text
+                            }}
+                        >
+                            📥
+                        </button>
+                    )}
                 </div>
-                {subtitle && (
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-                        {subtitle}
-                    </div>
-                )}
+
+                {subtitle && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 'auto' }}>{subtitle}</div>}
+
                 {children}
             </div>
         );
@@ -320,172 +267,91 @@ export default function Dashboard() {
 
     return (
         <div className="container" style={{ maxWidth: '1400px', padding: '2rem' }}>
-            {/* Header */}
             <div style={{ marginBottom: '2rem' }}>
-                <h1 style={{
-                    fontSize: '2rem',
-                    fontWeight: 'bold',
-                    marginBottom: '0.5rem',
-                    background: 'linear-gradient(135deg, var(--primary), var(--accent))',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent'
-                }}>
+                <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem', background: 'linear-gradient(135deg, var(--primary), var(--accent))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                     📊 Dashboard
                 </h1>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>
-                    Resumen de métricas clave del mes seleccionado
-                </p>
+                <p style={{ color: 'var(--text-muted)' }}>Métricas clave y alertas operativas</p>
             </div>
 
-            {/* Month Selector */}
             <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <div style={{ flex: '1', minWidth: '250px' }}>
-                        <label style={{
-                            display: 'block',
-                            marginBottom: '0.5rem',
-                            color: 'var(--text-muted)',
-                            fontSize: '0.9rem',
-                            fontWeight: '500'
-                        }}>
-                            📅 Seleccionar Mes
-                        </label>
-                        <select
-                            value={selectedMonth}
-                            onChange={(e) => setSelectedMonth(e.target.value)}
-                            style={{
-                                width: '100%',
-                                fontSize: '1rem',
-                                padding: '0.75rem'
-                            }}
-                        >
-                            <option value="">Seleccionar mes...</option>
-                            {months.map(month => (
-                                <option key={month} value={month}>{month}</option>
-                            ))}
-                        </select>
-                    </div>
-                    {metrics && (
-                        <div style={{
-                            padding: '1rem 1.5rem',
-                            background: 'rgba(99, 102, 241, 0.1)',
-                            border: '1px solid rgba(99, 102, 241, 0.3)',
-                            borderRadius: 'var(--radius-md)'
-                        }}>
-                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Total Ventas</div>
-                            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--primary)' }}>
-                                {metrics.totalSales}
-                            </div>
-                        </div>
-                    )}
-                </div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)' }}>📅 Seleccionar Mes</label>
+                <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} style={{ width: '100%', padding: '0.75rem' }}>
+                    <option value="">Seleccionar mes...</option>
+                    {months.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
             </div>
 
-            {/* Loading State */}
-            {loading && (
-                <div style={{
-                    textAlign: 'center',
-                    padding: '4rem',
-                    color: 'var(--text-muted)',
-                    fontSize: '1.1rem'
-                }}>
-                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⏳</div>
-                    Cargando datos...
-                </div>
-            )}
+            {loading && <div style={{ textAlign: 'center', padding: '4rem' }}>⏳ Cargando...</div>}
 
-            {/* Metrics Grid */}
             {!loading && metrics && (
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-                    gap: '1.5rem',
-                    alignItems: 'stretch'
-                }}>
-                    {/* Métrica 1: SIMs Activos Recientes */}
-                    <MetricCard
-                        icon="✅"
-                        title="SIMs Activos Recientes"
-                        value={metrics.activeSims}
-                        subtitle="Estado ACTIVO con activación ≥ 5 días"
-                        color="success"
-                    />
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', alignItems: 'stretch' }}>
 
-                    {/* Métrica 2: Gestión Pendiente */}
+                    {/* 1. Gestión Pendiente */}
                     <MetricCard
                         icon="⚠️"
                         title="Gestión Pendiente"
-                        value={metrics.pendingManagement}
-                        subtitle="Sin novedad en gestión y > 5 días de ingreso"
+                        data={metrics.pendingManagement}
+                        subtitle="Activas SIN información de gestión"
                         color="warning"
+                        onExport={handleExport}
                     />
 
-                    {/* Métrica 3: Ventas con Novedades */}
+                    {/* 2. Sin Fecha Activación */}
                     <MetricCard
-                        icon="🚨"
-                        title="Ventas con Novedades"
-                        value={metrics.salesWithIssues}
-                        subtitle="Ventas con descripción de novedad"
+                        icon="📅"
+                        title="Sin Fecha Activación"
+                        data={metrics.noActivationDate}
+                        subtitle="Registros con fecha de activación vacía"
                         color="danger"
+                        onExport={handleExport}
                     />
 
-                    {/* Métrica 5: Alertas de Saldo Alto */}
+                    {/* 3. Estado Vacío */}
+                    <MetricCard
+                        icon="❓"
+                        title="Sin Estado"
+                        data={metrics.emptyStatus}
+                        subtitle="Registros con campo ESTADO_SIM vacío"
+                        color="danger"
+                        onExport={handleExport}
+                    />
+
+                    {/* 4. Activas */}
+                    <MetricCard
+                        icon="✅"
+                        title="Total Activas"
+                        data={metrics.activeSims}
+                        subtitle="Total líneas en estado ACTIVA"
+                        color="success"
+                        onExport={handleExport}
+                    />
+
+                    {/* 5. Saldo Alto */}
                     <MetricCard
                         icon="💰"
-                        title="Alertas de Saldo Alto"
-                        value={metrics.highBalanceAlerts}
-                        subtitle="Saldo > $10,000 con abono ≤ $10,000"
+                        title="Saldo Alto / Bajo Abono"
+                        data={metrics.highBalanceAlerts}
+                        subtitle="Saldo > 10k y Abono <= 10k"
                         color="danger"
+                        onExport={handleExport}
                     />
 
-                    {/* Métrica 4: Distribución de Estados SIM */}
-                    <MetricCard
-                        icon="📊"
-                        title="Distribución Estados SIM"
-                        value={metrics.simStatusDistribution.length}
-                        subtitle="Estados únicos encontrados"
-                        color="info"
-                    >
-                        <div style={{ marginTop: '1rem' }}>
-                            {metrics.simStatusDistribution.length > 0 ? (
+                    {/* 6. Distribución (Gráfico) */}
+                    <div style={{ gridColumn: '1 / -1' }}>
+                        <MetricCard
+                            icon="📊"
+                            title="Distribución Estados SIM"
+                            data={metrics.totalSales}
+                            subtitle="Panorama general de estados"
+                            color="info"
+                        >
+                            <div style={{ marginTop: '1rem' }}>
                                 <PieChart data={metrics.simStatusDistribution} />
-                            ) : (
-                                <div style={{
-                                    textAlign: 'center',
-                                    padding: '2rem',
-                                    color: 'var(--text-muted)',
-                                    fontSize: '0.9rem'
-                                }}>
-                                    No hay datos para mostrar
-                                </div>
-                            )}
-                        </div>
-                    </MetricCard>
-                </div>
-            )}
+                            </div>
+                        </MetricCard>
+                    </div>
 
-            {/* Empty State */}
-            {!loading && !metrics && selectedMonth && (
-                <div style={{
-                    textAlign: 'center',
-                    padding: '4rem',
-                    color: 'var(--text-muted)',
-                    fontSize: '1.1rem'
-                }}>
-                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📭</div>
-                    No hay datos disponibles para este mes
-                </div>
-            )}
-
-            {!loading && !selectedMonth && (
-                <div style={{
-                    textAlign: 'center',
-                    padding: '4rem',
-                    color: 'var(--text-muted)',
-                    fontSize: '1.1rem'
-                }}>
-                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📅</div>
-                    Selecciona un mes para ver las métricas
                 </div>
             )}
         </div>

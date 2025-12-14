@@ -65,6 +65,7 @@ export default function SalesUpdate() {
         setLoading(true);
         setResult(null);
         try {
+            // Backend will fill in all defaults (ESTADO_SIM="", REGISTRO_SIM=false, etc.)
             const res = await addSales(targetMonth, [{
                 NUMERO: String(formData.NUMERO),
                 ICCID: formData.ICCID ? String(formData.ICCID) : null
@@ -122,7 +123,7 @@ export default function SalesUpdate() {
         <div className="container">
             <div className="glass-panel" style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
                 <h2 style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem' }}>
-                    Actualizar Ventas (Crear Meses)
+                    Registrar Nuevas Ventas
                 </h2>
 
                 {/* Month Selector */}
@@ -161,7 +162,7 @@ export default function SalesUpdate() {
                             </button>
                         </div>
                     )}
-                    {isNewMonth && <p style={{ fontSize: '0.8rem', color: '#fbbf24', marginTop: '0.5rem' }}>⚠️ Está a punto de crear una carpeta para un nuevo mes.</p>}
+                    {isNewMonth && <p style={{ fontSize: '0.8rem', color: '#fbbf24', marginTop: '0.5rem' }}>⚠️ Se creará una nueva carpeta para este mes.</p>}
                 </div>
 
                 {/* Mode Toggles */}
@@ -193,20 +194,20 @@ export default function SalesUpdate() {
                         marginBottom: '1.5rem'
                     }}>
                         <strong>Resultado:</strong> {result.added} agregados, {result.skipped} duplicados (omitidos).
-                        {result.errors.length > 0 && <div style={{ color: '#f87171', marginTop: '0.5rem' }}>Errores: {result.errors.length} (ver consola)</div>}
+                        {result.errors.length > 0 && <div style={{ color: '#f87171', marginTop: '0.5rem', whiteSpace: 'pre-wrap' }}>{result.errors.length} Errores: {result.errors.join('\n')}</div>}
                     </div>
                 )}
 
-                {/* Forms */}
+                {/* Single Form */}
                 {mode === 'single' ? (
                     <form onSubmit={handleSingleSubmit} style={{ display: 'grid', gap: '1rem' }}>
                         <div>
-                            <label>Número *</label>
+                            <label>Número (10 dígitos, empieza por 3) *</label>
                             <input
                                 required
                                 value={formData.NUMERO}
                                 onChange={e => setFormData({ ...formData, NUMERO: e.target.value })}
-                                placeholder="Ej: 3001234567"
+                                placeholder="300xxxxxxx"
                             />
                         </div>
                         <div>
@@ -218,19 +219,13 @@ export default function SalesUpdate() {
                             />
                         </div>
                         <button type="submit" disabled={loading} className="btn-primary">
-                            {loading ? 'Guardando...' : 'Guardar Venta'}
+                            {loading ? 'Validando y Guardando...' : 'Guardar Venta'}
                         </button>
                     </form>
                 ) : (
                     <form onSubmit={handleBulkSubmit}>
                         <div style={{ marginBottom: '1rem' }}>
-                            <label style={{ display: 'block', marginBottom: '0.5rem' }}>Lista de Números (Copia y pega desde Excel)</label>
-                            <div style={{ marginBottom: '0.5rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                                <p>Formato requerido:</p>
-                                <ul style={{ listStyle: 'none', paddingLeft: '1rem' }}>
-                                    <li><code>NUMERO</code> (Uno por línea)</li>
-                                </ul>
-                            </div>
+                            <label style={{ display: 'block', marginBottom: '0.5rem' }}>Lista de Números</label>
                             <textarea
                                 required
                                 value={bulkText}
@@ -247,9 +242,12 @@ export default function SalesUpdate() {
                                     fontFamily: 'monospace'
                                 }}
                             />
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                * Solo se registrará el NUMERO. El resto de campos quedarán con valores por defecto (vacíos o false).
+                            </p>
                         </div>
                         <button type="submit" disabled={loading} className="btn-primary">
-                            {loading ? 'Procesando...' : 'Cargar Lista Masiva'}
+                            {loading ? 'Procesando...' : 'Cargar Lista Rápida'}
                         </button>
                     </form>
                 )}

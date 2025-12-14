@@ -1,22 +1,20 @@
 import { useState } from 'react';
-import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { logoutUser } from '../store/slices/authSlice';
 
-export default function MainLayout() {
+export default function UserLayout() {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const dispatch = useDispatch();
     const navigate = useNavigate();
-    const location = useLocation();
-    const { user, role } = useSelector((state) => state.auth);
+    const { user } = useSelector((state) => state.auth);
 
     const handleLogout = async () => {
         await dispatch(logoutUser());
         navigate('/login', { replace: true });
     };
 
-    // Close mobile menu when navigating
     const handleNavClick = () => {
         setIsMobileMenuOpen(false);
     };
@@ -25,7 +23,7 @@ export default function MainLayout() {
         <div className="layout-container">
             {/* Mobile Header */}
             <header className="mobile-header">
-                <div style={{ fontWeight: 'bold', fontSize: '1.2rem', color: 'var(--primary)' }}>SCGM</div>
+                <div style={{ fontWeight: 'bold', fontSize: '1.2rem', color: 'var(--primary)' }}>SCGM - Usuario</div>
                 <button
                     onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                     style={{ background: 'none', border: 'none', color: 'white', fontSize: '1.5rem', cursor: 'pointer' }}
@@ -42,12 +40,12 @@ export default function MainLayout() {
 
             {/* Sidebar */}
             <aside className={`sidebar glass-panel ${isSidebarCollapsed ? 'collapsed' : ''} ${isMobileMenuOpen ? 'mobile-open' : ''}`} style={{
-                borderRadius: 0, // Reset radius for full height sidebar
+                borderRadius: 0,
                 borderTop: 'none',
                 borderBottom: 'none',
                 borderLeft: 'none'
             }}>
-                {/* Toggle Button (Desktop Only via CSS) */}
+                {/* Toggle Button */}
                 <button
                     className="sidebar-toggle"
                     onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -94,41 +92,14 @@ export default function MainLayout() {
                     flex: 1,
                     overflowY: 'auto'
                 }}>
-                    <Link to="/admin" className="nav-link" onClick={handleNavClick} title="Dashboard">
+                    <Link to="/user" className="nav-link" onClick={handleNavClick} title="Dashboard">
                         <span style={{ marginRight: '0.5rem' }}>📊</span> {!isSidebarCollapsed && 'Dashboard'}
                     </Link>
-                    <Link to="/admin/sales/update" className="nav-link" onClick={handleNavClick} title="Ventas">
-                        <span style={{ marginRight: '0.5rem' }}>➕</span> {!isSidebarCollapsed && 'Actualizar Ventas'}
-                    </Link>
-                    <Link to="/admin/income/update" className="nav-link" onClick={handleNavClick} title="Ingresos">
-                        <span style={{ marginRight: '0.5rem' }}>💰</span> {!isSidebarCollapsed && 'Actualizar Ingresos'}
-                    </Link>
-                    <Link to="/admin/client/update" className="nav-link" onClick={handleNavClick} title="Cliente">
-                        <span style={{ marginRight: '0.5rem' }}>👤</span> {!isSidebarCollapsed && 'Actualizar Cliente'}
-                    </Link>
-                    <Link to="/admin/activation/update" className="nav-link" onClick={handleNavClick} title="Activación">
-                        <span style={{ marginRight: '0.5rem' }}>📅</span> {!isSidebarCollapsed && 'Actualizar F. Activación'}
-                    </Link>
-                    <Link to="/admin/sim/update" className="nav-link" onClick={handleNavClick} title="Estado SIM">
-                        <span style={{ marginRight: '0.5rem' }}>📶</span> {!isSidebarCollapsed && 'Actualizar Estado SIM'}
-                    </Link>
-                    <Link to="/admin/sales-type/update" className="nav-link" onClick={handleNavClick} title="Tipo Venta">
-                        <span style={{ marginRight: '0.5rem' }}>🏷️</span> {!isSidebarCollapsed && 'Actualizar Tipo Venta'}
-                    </Link>
-                    <Link to="/admin/management/update" className="nav-link" onClick={handleNavClick} title="Gestión">
-                        <span style={{ marginRight: '0.5rem' }}>🔔</span> {!isSidebarCollapsed && 'Actualizar Novedad Gestión'}
-                    </Link>
-                    <Link to="/admin/portfolio/update" className="nav-link" onClick={handleNavClick} title="Cartera">
-                        <span style={{ marginRight: '0.5rem' }}>💼</span> {!isSidebarCollapsed && 'Actualizar Cartera'}
-                    </Link>
-                    <Link to="/admin/guides/update" className="nav-link" onClick={handleNavClick} title="Guías">
-                        <span style={{ marginRight: '0.5rem' }}>🚚</span> {!isSidebarCollapsed && 'Actualizar Guías'}
-                    </Link>
-                    <Link to="/admin/database" className="nav-link" onClick={handleNavClick} title="BD">
+                    <Link to="/user/database" className="nav-link" onClick={handleNavClick} title="Base de Datos">
                         <span style={{ marginRight: '0.5rem' }}>📋</span> {!isSidebarCollapsed && 'Base de Datos'}
                     </Link>
-                    <Link to="/admin/users" className="nav-link" onClick={handleNavClick} title="Usuarios">
-                        <span style={{ marginRight: '0.5rem' }}>👥</span> {!isSidebarCollapsed && 'Gestionar Usuarios'}
+                    <Link to="/user/registro-sim" className="nav-link" onClick={handleNavClick} title="Actualizar REGISTRO SIM">
+                        <span style={{ marginRight: '0.5rem' }}>📱</span> {!isSidebarCollapsed && 'REGISTRO SIM'}
                     </Link>
                 </nav>
 
@@ -165,7 +136,7 @@ export default function MainLayout() {
                 <Outlet />
             </main>
 
-            {/* Inline styles for nav links (scoped) */}
+            {/* Inline styles for nav links */}
             <style>{`
                 .nav-link {
                     display: flex;

@@ -164,11 +164,17 @@ export default function SimStatusUpdate() {
                         </div>
                         <div>
                             <label>Estado SIM</label>
-                            <input
+                            <select
                                 value={formData.ESTADO_SIM}
                                 onChange={e => setFormData({ ...formData, ESTADO_SIM: e.target.value })}
-                                placeholder="Ej: ACTIVA, SUSPENDIDA..."
-                            />
+                                style={{ width: '100%', padding: '0.8rem', borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid var(--glass-border)' }}
+                            >
+                                <option value="">(Seleccionar)</option>
+                                <option value="ACTIVA">ACTIVA</option>
+                                <option value="INACTIVA">INACTIVA</option>
+                                <option value="ENVIADA">ENVIADA</option>
+                                <option value="No se encontro información del cliente">No se encontro información del cliente</option>
+                            </select>
                         </div>
                         <div>
                             <label>ICCID</label>

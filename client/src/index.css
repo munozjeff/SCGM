@@ -2,27 +2,42 @@
 
 :root {
   /* Premium Dark Palette */
-  --bg-app: #0f172a; /* Slate 900 */
-  --bg-panel: #1e293b; /* Slate 800 */
-  --primary: #6366f1; /* Indigo 500 */
-  --primary-hover: #4f46e5; /* Indigo 600 */
-  --accent: #ec4899; /* Pink 500 */
-  
-  --text-main: #f8fafc; /* Slate 50 */
-  --text-muted: #94a3b8; /* Slate 400 */
-  
-  --glass-bg: rgba(30, 41, 59, 0.7);
+  --bg-app: #0f172a;
+  /* Slate 900 */
+  --bg-panel: #1e293b;
+  /* Slate 800 */
+  --primary: #6366f1;
+  /* Indigo 500 */
+  --primary-hover: #4f46e5;
+  /* Indigo 600 */
+  --accent: #ec4899;
+  /* Pink 500 */
+
+  --text-main: #f8fafc;
+  /* Slate 50 */
+  --text-muted: #94a3b8;
+  /* Slate 400 */
+
+  --glass-bg: rgba(30, 41, 59, 0.95);
   --glass-border: rgba(255, 255, 255, 0.1);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
-  
+
   --radius-md: 0.75rem;
   --radius-lg: 1rem;
+  --sidebar-width: 260px;
+  --sidebar-width-collapsed: 70px;
 }
 
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+html,
+body {
+  overflow-x: hidden;
+  /* Prevent horizontal scroll */
 }
 
 body {
@@ -53,21 +68,26 @@ body {
   font-weight: 600;
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+.btn-primary:active {
+  transform: translateY(0);
 }
 
 .container {
+  width: 100%;
   max-width: 1200px;
   margin: 0 auto;
   padding: 1rem;
 }
 
 /* Form Styles */
-input, select, textarea {
+input,
+select,
+textarea {
   background: var(--bg-app);
   border: 1px solid var(--glass-border);
   color: var(--text-main);
@@ -75,10 +95,160 @@ input, select, textarea {
   border-radius: var(--radius-md);
   width: 100%;
   font-family: inherit;
+  font-size: 1rem;
+  /* Prevent zoom on mobile */
   transition: border-color 0.2s;
 }
 
-input:focus, select:focus, textarea:focus {
+input:focus,
+select:focus,
+textarea:focus {
   outline: none;
   border-color: var(--primary);
+}
+
+/* Sidebar & Layout Styles */
+.layout-container {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: var(--sidebar-width);
+  transition: width 0.3s ease, transform 0.3s ease;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.sidebar.collapsed {
+  width: var(--sidebar-width-collapsed);
+}
+
+.main-content {
+  margin-left: var(--sidebar-width);
+  flex: 1;
+  padding: 2rem;
+  min-height: 100vh;
+  transition: margin-left 0.3s ease;
+  width: calc(100% - var(--sidebar-width));
+}
+
+.main-content.expanded {
+  margin-left: var(--sidebar-width-collapsed);
+  width: calc(100% - var(--sidebar-width-collapsed));
+}
+
+/* Mobile Header */
+.mobile-header {
+  display: none;
+  height: 60px;
+  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 90;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--glass-border);
+  padding: 0 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mobile-backdrop {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  z-index: 95;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .layout-container {
+    flex-direction: column;
+  }
+
+  .mobile-header {
+    display: flex;
+  }
+
+  .sidebar {
+    transform: translateX(-100%);
+    width: 280px !important;
+    /* Fixed width on mobile */
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.5);
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .mobile-backdrop.open {
+    display: block;
+  }
+
+  .main-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+    padding: 1rem;
+    padding-top: 5rem;
+    /* Space for mobile header */
+  }
+
+  .main-content.expanded {
+    margin-left: 0 !important;
+  }
+
+  /* Hide toggle button on mobile if needed or adjust pos */
+  .sidebar-toggle {
+    display: none !important;
+  }
+
+  .container {
+    padding: 0.5rem;
+  }
+}
+
+/* Animations for Scan Result Modal */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0);
+  }
+
+  to {
+    transform: scale(1);
+  }
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getSalesByMonth, getAllMonths } from '../services/SalesService';
+import { getAllMonths, listenToSalesByMonth } from '../services/SalesService';
 
 export default function DatabaseView() {
     const [months, setMonths] = useState([]);
@@ -43,7 +43,13 @@ export default function DatabaseView() {
         if (sales.length > 0) {
             const unique = {};
             selectFields.forEach(field => {
-                const values = [...new Set(sales.map(sale => sale[field]).filter(v => v))];
+                let values = [...new Set(sales.map(sale => sale[field]).filter(v => v != null))];
+
+                // Convert boolean values to SÍ/NO for REGISTRO_SIM
+                if (field === 'REGISTRO_SIM') {
+                    values = values.map(v => typeof v === 'boolean' ? (v ? 'SÍ' : 'NO') : v);
+                }
+
                 unique[field] = values.sort();
             });
             setUniqueValues(unique);
@@ -62,18 +68,26 @@ export default function DatabaseView() {
         }
     };
 
-    const loadSales = async (month) => {
-        if (!month) return;
+    // Listen to real-time changes cuando cambia el mes
+    useEffect(() => {
+        if (!selectedMonth) return;
+
         setLoading(true);
-        try {
-            const salesData = await getSalesByMonth(month);
+
+        // Setup real-time listener
+        const unsubscribe = listenToSalesByMonth(selectedMonth, (salesData) => {
             setSales(salesData);
-        } catch (error) {
-            console.error('Error loading sales:', error);
-            alert('Error al cargar datos');
-        } finally {
             setLoading(false);
-        }
+        });
+
+        // Cleanup listener when component unmounts or month changes
+        return () => {
+            if (unsubscribe) unsubscribe();
+        };
+    }, [selectedMonth]);
+
+    const handleMonthChange = (month) => {
+        setSelectedMonth(month);
     };
 
     const applyFilters = () => {
@@ -81,18 +95,20 @@ export default function DatabaseView() {
 
         columns.forEach(col => {
             if (filters[col]) {
-                filtered = filtered.filter(sale =>
-                    sale[col]?.toString().toLowerCase().includes(filters[col].toLowerCase())
-                );
+                filtered = filtered.filter(sale => {
+                    let value = sale[col];
+
+                    // Convert REGISTRO_SIM boolean to SÍ/NO for comparison
+                    if (col === 'REGISTRO_SIM' && typeof value === 'boolean') {
+                        value = value ? 'SÍ' : 'NO';
+                    }
+
+                    return value?.toString().toLowerCase().includes(filters[col].toLowerCase());
+                });
             }
         });
 
         setFilteredSales(filtered);
-    };
-
-    const handleMonthChange = (month) => {
-        setSelectedMonth(month);
-        loadSales(month);
     };
 
     const handleFilterChange = (field, value) => {
@@ -234,21 +250,33 @@ export default function DatabaseView() {
                                             background: index % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent'
                                         }}
                                     >
-                                        {columns.map(col => (
-                                            <td key={col} style={{
-                                                padding: '0.35rem 0.25rem',
-                                                color: col === 'NUMERO' ? 'white' : 'var(--text-muted)',
-                                                fontWeight: col === 'NUMERO' ? '600' : 'normal',
-                                                fontSize: '0.6rem',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                whiteSpace: 'nowrap'
-                                            }}
-                                                title={sale[col] || '-'}
-                                            >
-                                                {sale[col] || '-'}
-                                            </td>
-                                        ))}
+                                        {columns.map(col => {
+                                            let displayValue = sale[col];
+
+                                            // Convert REGISTRO_SIM boolean to SÍ/NO
+                                            if (col === 'REGISTRO_SIM' && typeof displayValue === 'boolean') {
+                                                displayValue = displayValue ? 'SÍ' : 'NO';
+                                            }
+
+                                            // Convert to string for display and title
+                                            const valueStr = displayValue != null ? String(displayValue) : '-';
+
+                                            return (
+                                                <td key={col} style={{
+                                                    padding: '0.35rem 0.25rem',
+                                                    color: col === 'NUMERO' ? 'white' : 'var(--text-muted)',
+                                                    fontWeight: col === 'NUMERO' ? '600' : 'normal',
+                                                    fontSize: '0.6rem',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    whiteSpace: 'nowrap'
+                                                }}
+                                                    title={valueStr}
+                                                >
+                                                    {valueStr}
+                                                </td>
+                                            );
+                                        })}
                                     </tr>
                                 ))}
                             </tbody>

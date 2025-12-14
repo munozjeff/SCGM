@@ -13,7 +13,7 @@ export default function ManagementStatusUpdate() {
         getAllMonths().then(setExistingMonths).catch(console.error);
     }, []);
 
-    const [formData, setFormData] = useState({ NUMERO: '', NOVEDAD: '' });
+    const [formData, setFormData] = useState({ NUMERO: '', NOVEDAD_EN_GESTION: '' });
 
     const handleSingleSubmit = async (e) => {
         e.preventDefault();
@@ -21,7 +21,7 @@ export default function ManagementStatusUpdate() {
         try {
             const res = await updateManagementStatus(month, [formData]);
             setResult(res);
-            if (res.updated > 0) setFormData({ NUMERO: '', NOVEDAD: '' });
+            if (res.updated > 0) setFormData({ NUMERO: '', NOVEDAD_EN_GESTION: '' });
         } catch (err) { alert(err.message); }
         setLoading(false);
     };
@@ -37,7 +37,7 @@ export default function ManagementStatusUpdate() {
                 const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
                 const updates = data.map(r => ({
                     NUMERO: String(r['NUMERO'] || r['Numero'] || '').trim(),
-                    NOVEDAD: String(r['NOVEDAD'] || r['Novedad'] || '').trim() || null
+                    NOVEDAD_EN_GESTION: String(r['NOVEDAD'] || r['Novedad'] || r['NOVEDAD_EN_GESTION'] || '').trim() || null
                 })).filter(r => r.NUMERO);
 
                 const res = await updateManagementStatus(month, updates);
@@ -68,7 +68,16 @@ export default function ManagementStatusUpdate() {
                 {mode === 'single' ? (
                     <form onSubmit={handleSingleSubmit} style={{ display: 'grid', gap: '1rem' }}>
                         <input required placeholder="Número" value={formData.NUMERO} onChange={e => setFormData({ ...formData, NUMERO: e.target.value })} />
-                        <input placeholder="Novedad" value={formData.NOVEDAD} onChange={e => setFormData({ ...formData, NOVEDAD: e.target.value })} />
+                        <select
+                            value={formData.NOVEDAD_EN_GESTION}
+                            onChange={e => setFormData({ ...formData, NOVEDAD_EN_GESTION: e.target.value })}
+                            style={{ width: '100%', padding: '0.8rem', borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid var(--glass-border)' }}
+                        >
+                            <option value="">(Seleccionar Novedad)</option>
+                            <option value="RECHAZADO">RECHAZADO</option>
+                            <option value="CE">CE</option>
+                            <option value="EN ESPERA">EN ESPERA</option>
+                        </select>
                         <button type="submit" disabled={!month || loading} className="btn-primary">Guardar</button>
                     </form>
                 ) : (

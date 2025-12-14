@@ -161,12 +161,16 @@ export default function SalesTypeUpdate() {
                         </div>
                         <div>
                             <label>Tipo Venta</label>
-                            <input
-                                required
+                            <select
                                 value={formData.TIPO_VENTA}
                                 onChange={e => setFormData({ ...formData, TIPO_VENTA: e.target.value })}
-                                placeholder="Ej: PORTABILIDAD, LINEA NUEVA..."
-                            />
+                                style={{ width: '100%', padding: '0.8rem', borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid var(--glass-border)' }}
+                            >
+                                <option value="">(Seleccionar)</option>
+                                <option value="portabilidad">portabilidad</option>
+                                <option value="linea nueva">linea nueva</option>
+                                <option value="ppt">ppt</option>
+                            </select>
                         </div>
                         <button type="submit" disabled={loading} className="btn-primary">
                             {loading ? 'Guardando...' : 'Actualizar Tipo'}
