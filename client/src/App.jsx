@@ -66,7 +66,14 @@ function AppContent() {
         }>
           <Route index element={<UserDashboard />} />
           <Route path="database" element={<UserDatabase />} />
-          <Route path="registro-sim" element={<RegistroSIMUpdate />} />
+          <Route path="client/update" element={<ClientUpdate />} />
+          <Route path="income/update" element={<IncomeUpdate />} />
+          <Route path="activation/update" element={<ActivationUpdate />} />
+          <Route path="sim/update" element={<SimStatusUpdate />} />
+          <Route path="sales-type/update" element={<SalesTypeUpdate />} />
+          <Route path="management/update" element={<ManagementStatusUpdate />} />
+          <Route path="portfolio/update" element={<PortfolioUpdate />} />
+          <Route path="guides/update" element={<GuidesUpdate />} />
         </Route>
 
         {/* Root redirect based on role */}

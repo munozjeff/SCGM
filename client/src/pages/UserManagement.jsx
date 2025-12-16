@@ -6,6 +6,10 @@ export default function UserManagement() {
     const [loading, setLoading] = useState(false);
     const [showCreateForm, setShowCreateForm] = useState(false);
 
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
+
     // Form state
     const [newUser, setNewUser] = useState({
         email: '',
@@ -24,7 +28,7 @@ export default function UserManagement() {
             setLoading(true);
             const usersList = await getAllUsers();
             setUsers(usersList);
-        } catch (error) {
+        } catch {
             setMessage({ type: 'error', text: 'Error al cargar usuarios' });
         } finally {
             setLoading(false);
@@ -42,6 +46,7 @@ export default function UserManagement() {
             setNewUser({ email: '', password: '', role: 'user' });
             setShowCreateForm(false);
             loadUsers();
+            setCurrentPage(1);
         } catch (error) {
             setMessage({ type: 'error', text: error.message || 'Error al crear usuario' });
         } finally {
@@ -55,8 +60,8 @@ export default function UserManagement() {
             await updateUserRole(uid, newRole);
             setMessage({ type: 'success', text: 'Rol actualizado' });
             loadUsers();
-        } catch (error) {
-            setMessage({ type: 'error', text: 'Error al actualizar rol' });
+        } catch {
+            setMessage({ type: 'error', text: 'Error al cambiar rol' });
         }
     };
 
@@ -67,9 +72,19 @@ export default function UserManagement() {
             await deleteUserData(uid);
             setMessage({ type: 'success', text: 'Usuario eliminado' });
             loadUsers();
-        } catch (error) {
+        } catch {
             setMessage({ type: 'error', text: 'Error al eliminar usuario' });
         }
+    };
+
+    // Pagination Logic
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentUsers = users.slice(indexOfFirstItem, indexOfLastItem);
+    const totalPages = Math.ceil(users.length / itemsPerPage);
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) setCurrentPage(newPage);
     };
 
     return (
@@ -147,7 +162,7 @@ export default function UserManagement() {
                     {loading && <p>Cargando...</p>}
 
                     <div style={{ display: 'grid', gap: '1rem' }}>
-                        {users.map(user => (
+                        {currentUsers.map(user => (
                             <div key={user.uid} className="glass-panel" style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div>
                                     <div style={{ fontWeight: '600' }}>{user.email}</div>
@@ -188,6 +203,62 @@ export default function UserManagement() {
                             </div>
                         ))}
                     </div>
+
+                    {/* Pagination Controls */}
+                    {users.length > 0 && (
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginTop: '2rem',
+                            paddingTop: '1rem',
+                            borderTop: '1px solid var(--glass-border)'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                <span>Usuarios por página:</span>
+                                <select
+                                    value={itemsPerPage}
+                                    onChange={(e) => {
+                                        setItemsPerPage(Number(e.target.value));
+                                        setCurrentPage(1);
+                                    }}
+                                    style={{
+                                        padding: '0.2rem',
+                                        fontSize: '0.8rem',
+                                        borderRadius: '4px',
+                                        border: '1px solid var(--glass-border)',
+                                        background: 'var(--bg-card)',
+                                        color: 'white'
+                                    }}
+                                >
+                                    <option value={5}>5</option>
+                                    <option value={10}>10</option>
+                                    <option value={20}>20</option>
+                                    <option value={50}>50</option>
+                                </select>
+                                <span>Página {currentPage} de {totalPages || 1} ({users.length} usuarios)</span>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <button
+                                    onClick={() => handlePageChange(currentPage - 1)}
+                                    disabled={currentPage === 1}
+                                    className="btn-secondary"
+                                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', opacity: currentPage === 1 ? 0.5 : 1 }}
+                                >
+                                    Anterior
+                                </button>
+                                <button
+                                    onClick={() => handlePageChange(currentPage + 1)}
+                                    disabled={currentPage === totalPages}
+                                    className="btn-secondary"
+                                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', opacity: currentPage === totalPages ? 0.5 : 1 }}
+                                >
+                                    Siguiente
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

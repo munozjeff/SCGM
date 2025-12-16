@@ -68,7 +68,11 @@ export const getAllUsers = async () => {
             return Object.keys(usersData).map(uid => ({
                 uid,
                 ...usersData[uid]
-            }));
+            })).sort((a, b) => {
+                const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+                const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+                return dateB - dateA; // Descending
+            });
         }
         return [];
     } catch (error) {

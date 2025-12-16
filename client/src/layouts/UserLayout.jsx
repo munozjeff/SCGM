@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Outlet, Link, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { logoutUser } from '../store/slices/authSlice';
 
@@ -8,6 +8,7 @@ export default function UserLayout() {
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const dispatch = useDispatch();
     const navigate = useNavigate();
+    const location = useLocation();
     const { user } = useSelector((state) => state.auth);
 
     const handleLogout = async () => {
@@ -51,7 +52,7 @@ export default function UserLayout() {
                     onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
                     style={{
                         position: 'absolute',
-                        right: '-12px',
+                        right: '0px',
                         top: '24px',
                         width: '24px',
                         height: '24px',
@@ -98,8 +99,29 @@ export default function UserLayout() {
                     <Link to="/user/database" className="nav-link" onClick={handleNavClick} title="Base de Datos">
                         <span style={{ marginRight: '0.5rem' }}>📋</span> {!isSidebarCollapsed && 'Base de Datos'}
                     </Link>
-                    <Link to="/user/registro-sim" className="nav-link" onClick={handleNavClick} title="Actualizar REGISTRO SIM">
-                        <span style={{ marginRight: '0.5rem' }}>📱</span> {!isSidebarCollapsed && 'REGISTRO SIM'}
+                    <Link to="/user/client/update" className={`nav-link ${location.pathname === '/user/client/update' ? 'active' : ''}`} onClick={handleNavClick} title="Cliente">
+                        <span style={{ marginRight: '0.5rem' }}>👥</span> {!isSidebarCollapsed && 'Cliente'}
+                    </Link>
+                    <Link to="/user/income/update" className={`nav-link ${location.pathname === '/user/income/update' ? 'active' : ''}`} onClick={handleNavClick} title="Ingreso">
+                        <span style={{ marginRight: '0.5rem' }}>💰</span> {!isSidebarCollapsed && 'Ingreso'}
+                    </Link>
+                    <Link to="/user/activation/update" className={`nav-link ${location.pathname === '/user/activation/update' ? 'active' : ''}`} onClick={handleNavClick} title="Activación">
+                        <span style={{ marginRight: '0.5rem' }}>📅</span> {!isSidebarCollapsed && 'Activación'}
+                    </Link>
+                    <Link to="/user/sim/update" className={`nav-link ${location.pathname === '/user/sim/update' ? 'active' : ''}`} onClick={handleNavClick} title="Estado SIM">
+                        <span style={{ marginRight: '0.5rem' }}>📶</span> {!isSidebarCollapsed && 'Estado SIM'}
+                    </Link>
+                    <Link to="/user/sales-type/update" className={`nav-link ${location.pathname === '/user/sales-type/update' ? 'active' : ''}`} onClick={handleNavClick} title="Tipo Venta">
+                        <span style={{ marginRight: '0.5rem' }}>🏷️</span> {!isSidebarCollapsed && 'Tipo Venta'}
+                    </Link>
+                    <Link to="/user/management/update" className={`nav-link ${location.pathname === '/user/management/update' ? 'active' : ''}`} onClick={handleNavClick} title="Gestión">
+                        <span style={{ marginRight: '0.5rem' }}>⚠️</span> {!isSidebarCollapsed && 'Gestión'}
+                    </Link>
+                    <Link to="/user/portfolio/update" className={`nav-link ${location.pathname === '/user/portfolio/update' ? 'active' : ''}`} onClick={handleNavClick} title="Cartera">
+                        <span style={{ marginRight: '0.5rem' }}>📁</span> {!isSidebarCollapsed && 'Cartera'}
+                    </Link>
+                    <Link to="/user/guides/update" className={`nav-link ${location.pathname === '/user/guides/update' ? 'active' : ''}`} onClick={handleNavClick} title="Guías">
+                        <span style={{ marginRight: '0.5rem' }}>🚚</span> {!isSidebarCollapsed && 'Guías'}
                     </Link>
                 </nav>
 

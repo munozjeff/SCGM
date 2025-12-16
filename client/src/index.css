@@ -107,6 +107,12 @@ textarea:focus {
   border-color: var(--primary);
 }
 
+/* Fix for Select Options in Dark Mode */
+option {
+  background-color: var(--bg-panel);
+  color: var(--text-main);
+}
+
 /* Sidebar & Layout Styles */
 .layout-container {
   display: flex;
@@ -251,4 +257,53 @@ textarea:focus {
   to {
     transform: scale(1);
   }
+}
+
+/* Global Table Styles */
+.table-container {
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--glass-border);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  white-space: nowrap;
+}
+
+th,
+td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.table-row-hover:hover {
+  background: rgba(255, 255, 255, 0.05);
+  /* 5% white hover */
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+/* Custom Scrollbar for Dark Mode */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(30, 41, 59, 0.5);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--glass-border);
+  border-radius: 4px;
+  border: 2px solid rgba(30, 41, 59, 0.5);
+  /* Creates padding effect */
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }

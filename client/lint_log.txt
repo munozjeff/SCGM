@@ -1,0 +1,518 @@
+
+> client@0.0.0 lint
+> eslint .
+
+
+C:\Users\jeff\Documents\Antigravity\SCGM\client\src\contexts\AuthContext.jsx
+  8:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\jeff\Documents\Antigravity\SCGM\client\src\layouts\MainLayout.jsx
+  11:11  error  'location' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  12:19  error  'role' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u      no-unused-vars
+
+C:\Users\jeff\Documents\Antigravity\SCGM\client\src\pages\ActivationUpdate.jsx
+  19:11  error    'selectFields' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            no-unused-vars
+  34:13  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  32 |     useEffect(() => {
+  33 |         if (month) {
+> 34 |             setLoading(true);
+     |             ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  35 |             const unsubscribe = listenToSalesByMonth(month, (data) => {
+  36 |                 setSales(data);
+  37 |                 setFilteredSales(data);  react-hooks/set-state-in-effect
+  58:9   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  56 |             }
+  57 |         });
+> 58 |         setFilteredSales(filtered);
+     |         ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  59 |     }, [filters, sales]);
+  60 |
+  61 |     const handleFilterChange = (field, value) => {                                                                              react-hooks/set-state-in-effect
+  59:8   warning  React Hook useEffect has a missing dependency: 'columns'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              react-hooks/exhaustive-deps
+  74:11  error    'handleNewRecord' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         no-unused-vars
+
+C:\Users\jeff\Documents\Antigravity\SCGM\client\src\pages\ClientUpdate.jsx
+   8:12  error  'mode' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  no-unused-vars
+   8:18  error  'setMode' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               no-unused-vars
+  27:12  error  'selectedRecord' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        no-unused-vars
+  27:28  error  'setSelectedRecord' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     no-unused-vars
+  45:9   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  43 |     useEffect(() => {
+  44 |         if (!month) return;
+> 45 |         setLoading(true);
+     |         ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  46 |         const unsubscribe = listenToSalesByMonth(month, (data) => {
+  47 |             setSales(data);
+  48 |             setLoading(false);  react-hooks/set-state-in-effect
+
+C:\Users\jeff\Documents\Antigravity\SCGM\client\src\pages\Dashboard.jsx
+   8:12  error    'sales' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  no-unused-vars
+  13:9   error    Error: Cannot access variable before it is declared
+
+`loadMonths` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  11 |
+  12 |     useEffect(() => {
+> 13 |         loadMonths();
+     |         ^^^^^^^^^^ `loadMonths` accessed before it is declared
+  14 |     }, []);
+  15 |
+  16 |     // Real-time metrics listener
+
+  31 |     }, [selectedMonth]);
+  32 |
+> 33 |     const loadMonths = async () => {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 34 |         try {
+     | ^^^^^^^^^^^^^
+> 35 |             const monthsList = await getAllMonths();
+     …
+     | ^^^^^^^^^^^^^
+> 42 |         }
+     | ^^^^^^^^^^^^^
+> 43 |     };
+     | ^^^^^^^ `loadMonths` is declared here
+  44 |
+  45 |     // Utilidad: Calcula diferencia en días desde hoy
+  46 |     const getDaysDifference = (dateString) => {                                                                                                                                                                                                                                                                                       react-hooks/immutability
+  24:13  error    Error: Cannot access variable before it is declared
+
+`calculateAllMetrics` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  22 |         const unsubscribe = listenToSalesByMonth(selectedMonth, (salesData) => {
+  23 |             setSales(salesData);
+> 24 |             calculateAllMetrics(salesData);
+     |             ^^^^^^^^^^^^^^^^^^^ `calculateAllMetrics` accessed before it is declared
+  25 |             setLoading(false);
+  26 |         });
+  27 |
+
+  115 |     };
+  116 |
+> 117 |     const calculateAllMetrics = (salesData) => {
+      |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 118 |         const calculatedMetrics = {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 119 |             activeSims: filterActiveSims(salesData),
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 128 |         setMetrics(calculatedMetrics);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 129 |     };
+      | ^^^^^^^ `calculateAllMetrics` is declared here
+  130 |
+  131 |     const handleExport = (data, fileName) => {
+  132 |         if (!data || data.length === 0) {  react-hooks/immutability
+  31:8   warning  React Hook useEffect has a missing dependency: 'calculateAllMetrics'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 react-hooks/exhaustive-deps
+  46:11  error    'getDaysDifference' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      no-unused-vars
+
+C:\Users\jeff\Documents\Antigravity\SCGM\client\src\pages\DatabaseView.jsx
+   44:8   warning  React Hook useEffect has a missing dependency: 'applyFilters'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+   62:8   warning  React Hook useEffect has a missing dependency: 'selectFields'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  293:40  error    'loadSales' is not defined                                                                                       no-undef
+
+C:\Users\jeff\Documents\Antigravity\SCGM\client\src\pages\GuidesUpdate.jsx
+  35:13  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  33 |     useEffect(() => {
+  34 |         if (month) {
+> 35 |             setLoading(true);
+     |             ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  36 |             const unsubscribe = listenToSalesByMonth(month, (data) => {
+  37 |                 setSales(data);
+  38 |                 setFilteredSales(data);  react-hooks/set-state-in-effect
+  55:13  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  53 |                 unique[field] = values.sort();
+  54 |             });
+> 55 |             setUniqueValues(unique);
+     |             ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  56 |         }
+  57 |     }, [sales]);
+  58 |                                                                                       react-hooks/set-state-in-effect
+  57:8   warning  React Hook useEffect has a missing dependency: 'selectFields'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         react-hooks/exhaustive-deps
+  70:9   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  68 |             }
+  69 |         });
+> 70 |         setFilteredSales(filtered);
+     |         ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  71 |     }, [filters, sales]);
+  72 |
+  73 |     const handleFilterChange = (field, value) => {                                                                              react-hooks/set-state-in-effect
+  71:8   warning  React Hook useEffect has a missing dependency: 'columns'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              react-hooks/exhaustive-deps
+  86:11  error    'handleNewRecord' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         no-unused-vars
+
+C:\Users\jeff\Documents\Antigravity\SCGM\client\src\pages\IncomeUpdate.jsx
+   73:13  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  71 |     useEffect(() => {
+  72 |         if (month) {
+> 73 |             setLoading(true);
+     |             ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  74 |             const unsubscribe = listenToSalesByMonth(month, (data) => {
+  75 |                 setSales(data);
+  76 |                 setFilteredSales(data);  react-hooks/set-state-in-effect
+   99:13  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+   97 |                 unique[field] = values.sort();
+   98 |             });
+>  99 |             setUniqueValues(unique);
+      |             ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  100 |         }
+  101 |     }, [sales]);
+  102 |                                                                                react-hooks/set-state-in-effect
+  101:8   warning  React Hook useEffect has a missing dependency: 'selectFields'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         react-hooks/exhaustive-deps
+  119:9   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  117 |             }
+  118 |         });
+> 119 |         setFilteredSales(filtered);
+      |         ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  120 |     }, [filters, sales]);
+  121 |
+  122 |     const handleFilterChange = (field, value) => {                                                                       react-hooks/set-state-in-effect
+  120:8   warning  React Hook useEffect has a missing dependency: 'columns'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              react-hooks/exhaustive-deps
+  182:11  error    'handleNewRecord' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         no-unused-vars
+
+C:\Users\jeff\Documents\Antigravity\SCGM\client\src\pages\ManagementStatusUpdate.jsx
+  35:13  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  33 |     useEffect(() => {
+  34 |         if (month) {
+> 35 |             setLoading(true);
+     |             ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  36 |             const unsubscribe = listenToSalesByMonth(month, (data) => {
+  37 |                 setSales(data);
+  38 |                 setFilteredSales(data);  react-hooks/set-state-in-effect
+  55:13  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  53 |                 unique[field] = values.sort();
+  54 |             });
+> 55 |             setUniqueValues(unique);
+     |             ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  56 |         }
+  57 |     }, [sales]);
+  58 |                                                                                       react-hooks/set-state-in-effect
+  57:8   warning  React Hook useEffect has a missing dependency: 'selectFields'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         react-hooks/exhaustive-deps
+  70:9   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  68 |             }
+  69 |         });
+> 70 |         setFilteredSales(filtered);
+     |         ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  71 |     }, [filters, sales]);
+  72 |
+  73 |     const handleFilterChange = (field, value) => {                                                                              react-hooks/set-state-in-effect
+  71:8   warning  React Hook useEffect has a missing dependency: 'columns'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              react-hooks/exhaustive-deps
+  86:11  error    'handleNewRecord' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         no-unused-vars
+
+C:\Users\jeff\Documents\Antigravity\SCGM\client\src\pages\PortfolioUpdate.jsx
+  35:13  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  33 |     useEffect(() => {
+  34 |         if (month) {
+> 35 |             setLoading(true);
+     |             ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  36 |             const unsubscribe = listenToSalesByMonth(month, (data) => {
+  37 |                 setSales(data);
+  38 |                 setFilteredSales(data);  react-hooks/set-state-in-effect
+  55:13  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  53 |                 unique[field] = values.sort();
+  54 |             });
+> 55 |             setUniqueValues(unique);
+     |             ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  56 |         }
+  57 |     }, [sales]);
+  58 |                                                                                       react-hooks/set-state-in-effect
+  57:8   warning  React Hook useEffect has a missing dependency: 'selectFields'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         react-hooks/exhaustive-deps
+  70:9   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  68 |             }
+  69 |         });
+> 70 |         setFilteredSales(filtered);
+     |         ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  71 |     }, [filters, sales]);
+  72 |
+  73 |     const handleFilterChange = (field, value) => {                                                                              react-hooks/set-state-in-effect
+  71:8   warning  React Hook useEffect has a missing dependency: 'columns'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              react-hooks/exhaustive-deps
+  86:11  error    'handleNewRecord' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         no-unused-vars
+
+C:\Users\jeff\Documents\Antigravity\SCGM\client\src\pages\SalesTypeUpdate.jsx
+  35:13  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  33 |     useEffect(() => {
+  34 |         if (month) {
+> 35 |             setLoading(true);
+     |             ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  36 |             const unsubscribe = listenToSalesByMonth(month, (data) => {
+  37 |                 setSales(data);
+  38 |                 setFilteredSales(data);  react-hooks/set-state-in-effect
+  55:13  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  53 |                 unique[field] = values.sort();
+  54 |             });
+> 55 |             setUniqueValues(unique);
+     |             ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  56 |         }
+  57 |     }, [sales]);
+  58 |                                                                                       react-hooks/set-state-in-effect
+  57:8   warning  React Hook useEffect has a missing dependency: 'selectFields'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         react-hooks/exhaustive-deps
+  70:9   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  68 |             }
+  69 |         });
+> 70 |         setFilteredSales(filtered);
+     |         ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  71 |     }, [filters, sales]);
+  72 |
+  73 |     const handleFilterChange = (field, value) => {                                                                              react-hooks/set-state-in-effect
+  71:8   warning  React Hook useEffect has a missing dependency: 'columns'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              react-hooks/exhaustive-deps
+  86:11  error    'handleNewRecord' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         no-unused-vars
+
+C:\Users\jeff\Documents\Antigravity\SCGM\client\src\pages\SalesUpdate.jsx
+  26:9  error  Error: Cannot access variable before it is declared
+
+`loadMonths` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  24 |     // Cargar meses al inicio
+  25 |     useEffect(() => {
+> 26 |         loadMonths();
+     |         ^^^^^^^^^^ `loadMonths` accessed before it is declared
+  27 |     }, []);
+  28 |
+  29 |     const loadMonths = async () => {
+
+  27 |     }, []);
+  28 |
+> 29 |     const loadMonths = async () => {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 30 |         try {
+     | ^^^^^^^^^^^^^
+> 31 |             const months = await getAllMonths();
+     | ^^^^^^^^^^^^^
+> 32 |             setExistingMonths(months);
+     | ^^^^^^^^^^^^^
+> 33 |         } catch (error) {
+     | ^^^^^^^^^^^^^
+> 34 |             console.error("Error loading months", error);
+     | ^^^^^^^^^^^^^
+> 35 |         }
+     | ^^^^^^^^^^^^^
+> 36 |     };
+     | ^^^^^^^ `loadMonths` is declared here
+  37 |
+  38 |     const handleMonthSelection = (e) => {
+  39 |         const val = e.target.value;  react-hooks/immutability
+
+C:\Users\jeff\Documents\Antigravity\SCGM\client\src\pages\SimStatusUpdate.jsx
+  35:13  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  33 |     useEffect(() => {
+  34 |         if (month) {
+> 35 |             setLoading(true);
+     |             ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  36 |             const unsubscribe = listenToSalesByMonth(month, (data) => {
+  37 |                 setSales(data);
+  38 |                 setFilteredSales(data);  react-hooks/set-state-in-effect
+  55:13  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  53 |                 unique[field] = values.sort();
+  54 |             });
+> 55 |             setUniqueValues(unique);
+     |             ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  56 |         }
+  57 |     }, [sales]);
+  58 |                                                                                       react-hooks/set-state-in-effect
+  57:8   warning  React Hook useEffect has a missing dependency: 'selectFields'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         react-hooks/exhaustive-deps
+  70:9   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  68 |             }
+  69 |         });
+> 70 |         setFilteredSales(filtered);
+     |         ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  71 |     }, [filters, sales]);
+  72 |
+  73 |     const handleFilterChange = (field, value) => {                                                                              react-hooks/set-state-in-effect
+  71:8   warning  React Hook useEffect has a missing dependency: 'columns'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              react-hooks/exhaustive-deps
+  86:11  error    'handleNewRecord' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         no-unused-vars
+
+C:\Users\jeff\Documents\Antigravity\SCGM\client\src\pages\UserManagement.jsx
+  31:18  error  'error' is defined but never used  no-unused-vars
+  63:18  error  'error' is defined but never used  no-unused-vars
+  75:18  error  'error' is defined but never used  no-unused-vars
+
+C:\Users\jeff\Documents\Antigravity\SCGM\client\src\pages\user\RegistroSIMUpdate.jsx
+  11:12  error  'loading' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  no-unused-vars
+  24:9   error  Error: Cannot access variable before it is declared
+
+`loadMonths` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  22 |
+  23 |     useEffect(() => {
+> 24 |         loadMonths();
+     |         ^^^^^^^^^^ `loadMonths` accessed before it is declared
+  25 |     }, []);
+  26 |
+  27 |     // Listen to real-time changes
+
+  62 |     }, [sales, filters]);
+  63 |
+> 64 |     const loadMonths = async () => {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 65 |         try {
+     | ^^^^^^^^^^^^^
+> 66 |             const monthsList = await getAllMonths();
+     | ^^^^^^^^^^^^^
+> 67 |             setMonths(monthsList);
+     | ^^^^^^^^^^^^^
+> 68 |             if (monthsList.length > 0) setSelectedMonth(monthsList[0]);
+     | ^^^^^^^^^^^^^
+> 69 |         } catch (error) { console.error('Error loading months:', error); }
+     | ^^^^^^^^^^^^^
+> 70 |     };
+     | ^^^^^^^ `loadMonths` is declared here
+  71 |
+  72 |     const handleFilterChange = (field, value) => {
+  73 |         setFilters(prev => ({ ...prev, [field]: value }));  react-hooks/immutability
+
+C:\Users\jeff\Documents\Antigravity\SCGM\client\src\services\UserService.js
+  1:10  error  'auth' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                            no-unused-vars
+  2:10  error  'createUserWithEmailAndPassword' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\jeff\Documents\Antigravity\SCGM\client\src\store\slices\authSlice.js
+  45:12  error  '_' is defined but never used                no-unused-vars
+  45:17  error  'rejectWithValue' is defined but never used  no-unused-vars
+
+✖ 67 problems (51 errors, 16 warnings)
+

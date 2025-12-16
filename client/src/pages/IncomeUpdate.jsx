@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { updateIncome, getAllMonths, getSalesByMonth } from '../services/SalesService';
+import { updateIncome, getAllMonths, listenToSalesByMonth } from '../services/SalesService';
 import * as XLSX from 'xlsx';
 import { useZxing } from "react-zxing";
 import { BarcodeFormat, DecodeHintType } from "@zxing/library";
@@ -36,73 +36,111 @@ const Scanner = ({ onScan, onClose }) => {
 export default function IncomeUpdate() {
     const [month, setMonth] = useState('');
     const [existingMonths, setExistingMonths] = useState([]);
-    const [mode, setMode] = useState('single'); // 'single', 'excel', 'scan'
+
+    // Real-time data
+    const [sales, setSales] = useState([]);
+    const [filteredSales, setFilteredSales] = useState([]);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
-    const [salesForLookup, setSalesForLookup] = useState([]);
-    const [isScanning, setIsScanning] = useState(false);
 
-    // Cargar meses al montar
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(50);
+
+    // Columns
+    const columns = ['NUMERO', 'REGISTRO_SIM', 'FECHA_INGRESO', 'ICCID'];
+    const selectFields = ['REGISTRO_SIM'];
+
+    const [filters, setFilters] = useState({ NUMERO: '', REGISTRO_SIM: '', FECHA_INGRESO: '', ICCID: '' });
+    const [uniqueValues, setUniqueValues] = useState({});
+
+    // Modes & Modals
+    const [isScanning, setIsScanning] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editForm, setEditForm] = useState(null);
+    const [isNewRecord, setIsNewRecord] = useState(false);
+
+    // Scan Result Modal State
+    const [scanResult, setScanResult] = useState(null); // { found: bool, data: object, iccid: string }
+
     useEffect(() => {
-        const fetchMonths = async () => {
-            try {
-                const months = await getAllMonths();
-                setExistingMonths(months);
-            } catch (error) {
-                console.error("Error cargando meses:", error);
-            }
-        };
-        fetchMonths();
+        getAllMonths().then(setExistingMonths).catch(console.error);
     }, []);
 
-    // Cargar datos para lookup cuando cambia el mes
+    // Listen to sales
     useEffect(() => {
         if (month) {
             setLoading(true);
-            getSalesByMonth(month).then(data => {
-                setSalesForLookup(data);
-                setLoading(false);
-            }).catch(err => {
-                console.error("Error cargando ventas para lookup:", err);
+            const unsubscribe = listenToSalesByMonth(month, (data) => {
+                setSales(data);
+                setFilteredSales(data);
                 setLoading(false);
             });
+            return () => unsubscribe();
         } else {
-            setSalesForLookup([]);
+            setSales([]);
+            setFilteredSales([]);
         }
     }, [month]);
 
-    // Single Entry State
-    const [formData, setFormData] = useState({
-        NUMERO: '',
-        REGISTRO_SIM: '',
-        FECHA_INGRESO: '',
-        ICCID: ''
-    });
+    // Calculate unique values for Select filters
+    useEffect(() => {
+        if (sales.length > 0) {
+            const unique = {};
+            selectFields.forEach(field => {
+                const values = [...new Set(sales.map(s => {
+                    let val = s[field];
+                    if (val === true) return 'true';
+                    if (val === false) return 'false';
+                    return val;
+                }).filter(v => v !== null && v !== undefined && v !== ''))];
+                unique[field] = values.sort();
+            });
+            setUniqueValues(unique);
+        }
+    }, [sales]);
 
-    // State for scan result modal
-    const [scanResult, setScanResult] = useState(null); // { found: bool, data: object, iccid: string }
+    // Apply filters
+    useEffect(() => {
+        let filtered = sales;
+        columns.forEach(col => {
+            if (filters[col]) {
+                const filterVal = filters[col].toLowerCase();
+                filtered = filtered.filter(item => {
+                    let val = item[col];
+                    if (val === true) val = 'true';
+                    else if (val === false) val = 'false';
+                    else val = val ? String(val) : '';
 
+                    return val.toLowerCase().includes(filterVal);
+                });
+            }
+        });
+        setFilteredSales(filtered);
+    }, [filters, sales]);
+
+    const handleFilterChange = (field, value) => {
+        setFilters(prev => ({ ...prev, [field]: value }));
+        setCurrentPage(1);
+    };
+
+    const clearFilters = () => setFilters({ NUMERO: '', REGISTRO_SIM: '', FECHA_INGRESO: '', ICCID: '' });
+
+    // --- Scanner Logic ---
     const handleScanMatch = (scannedIccid) => {
         if (!scannedIccid) return;
-
         const cleanIccid = String(scannedIccid).trim();
-        console.log("Scanned ICCID:", cleanIccid);
+        setIsScanning(false); // Stop scanning on detection
 
-        // Stop scanning immediately on detection to prevent duplicate alerts
-        setIsScanning(false);
-
-        const found = salesForLookup.find(s => {
+        const found = sales.find(s => { // Search in local real-time sales
             if (!s.ICCID) return false;
             const dbIccid = String(s.ICCID).trim();
-            // Check for match
             return dbIccid === cleanIccid || dbIccid.includes(cleanIccid) || cleanIccid.includes(dbIccid);
         });
 
         if (found) {
-            console.log("Match found:", found);
             setScanResult({ found: true, data: found, iccid: cleanIccid });
         } else {
-            console.warn("No match for ICCID:", cleanIccid);
             setScanResult({ found: false, data: null, iccid: cleanIccid });
         }
     };
@@ -121,14 +159,8 @@ export default function IncomeUpdate() {
         try {
             const res = await updateIncome(month, [payload]);
             setResult(res);
-            if (res.updated > 0) {
-                // Actualizar cache local
-                getSalesByMonth(month).then(setSalesForLookup);
-                // Close modal and show success
-                setScanResult(null);
-                // Optionally resume scanning after success
-                setTimeout(() => setIsScanning(true), 1500);
-            }
+            setScanResult(null); // Close result modal
+            // Automatically resume scanning after short delay if desired, or stay closed
         } catch (err) {
             alert("Error: " + err.message);
         }
@@ -140,56 +172,53 @@ export default function IncomeUpdate() {
         setIsScanning(true); // Resume scanning
     };
 
-    const handleSingleSubmit = async (e) => {
-        e.preventDefault();
-        if (!month) {
-            alert("Por favor seleccione un mes de operación.");
-            return;
-        }
-        setLoading(true);
-        setResult(null);
-        try {
-            const payload = {
-                ...formData,
-                REGISTRO_SIM: formData.REGISTRO_SIM === 'true' || formData.REGISTRO_SIM === true
-            };
+    // --- Editing Logic ---
+    const handleEditClick = (record) => {
+        setEditForm({ ...record });
+        setIsNewRecord(false);
+        setIsEditModalOpen(true);
+    };
 
-            const res = await updateIncome(month, [payload]);
+    const handleNewRecord = () => {
+        setEditForm({
+            NUMERO: '',
+            REGISTRO_SIM: '',
+            FECHA_INGRESO: new Date().toISOString().split('T')[0],
+            ICCID: ''
+        });
+        setIsNewRecord(true);
+        setIsEditModalOpen(true);
+    };
+
+    const handleSave = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            // Convert select value to boolean/null if needed, but endpoint might handle string 'true'/'false'
+            // Let's standardise to boolean for REGISTRO_SIM
+            const finalForm = { ...editForm };
+            if (finalForm.REGISTRO_SIM === 'true' || finalForm.REGISTRO_SIM === true) finalForm.REGISTRO_SIM = true;
+            else if (finalForm.REGISTRO_SIM === 'false' || finalForm.REGISTRO_SIM === false) finalForm.REGISTRO_SIM = false;
+            else finalForm.REGISTRO_SIM = null;
+
+            const res = await updateIncome(month, [finalForm]);
             setResult(res);
-            if (res.updated > 0) {
-                // Limpiar form
-                setFormData({ NUMERO: '', REGISTRO_SIM: '', FECHA_INGRESO: '', ICCID: '' });
-                // Actualizar cache local
-                getSalesByMonth(month).then(setSalesForLookup);
-            }
+            setIsEditModalOpen(false);
         } catch (err) {
-            alert("Error: " + err.message);
+            alert(err.message);
         }
         setLoading(false);
     };
 
-    const handleFileUpload = async (e) => {
+    const handleFileUpload = (e) => {
         const file = e.target.files[0];
-        if (!file) return;
-
-        if (!month) {
-            alert("Por favor seleccione un mes de operación antes de cargar el archivo.");
-            e.target.value = null; // Reset input
-            return;
-        }
-
+        if (!file || !month) return;
         setLoading(true);
-        setResult(null);
-
         const reader = new FileReader();
         reader.onload = async (evt) => {
             try {
-                const bstr = evt.target.result;
-                const wb = XLSX.read(bstr, { type: 'binary' });
-                const wsname = wb.SheetNames[0];
-                const ws = wb.Sheets[wsname];
-                const data = XLSX.utils.sheet_to_json(ws);
-
+                const wb = XLSX.read(evt.target.result, { type: 'binary' });
+                const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
                 const updates = data.map(row => {
                     const numero = row['NUMERO'] || row['Numero'] || row['numero'];
                     const registro = row['REGISTRO SIM'] || row['Registro Sim'] || row['REGISTRO_SIM'];
@@ -202,423 +231,250 @@ export default function IncomeUpdate() {
                         FECHA_INGRESO: fecha ? String(fecha).trim() : null,
                         ICCID: iccid ? String(iccid).trim() : null
                     };
-                }).filter(item => item.NUMERO);
-
-                if (updates.length === 0) {
-                    alert("No se encontraron datos válidos en el archivo. Asegúrese de tener la columna NUMERO.");
-                    setLoading(false);
-                    return;
-                }
+                }).filter(r => r.NUMERO);
 
                 const res = await updateIncome(month, updates);
                 setResult(res);
-                getSalesByMonth(month).then(setSalesForLookup);
-            } catch (err) {
-                console.error(err);
-                alert("Error procesando el archivo: " + err.message);
-            }
+            } catch (err) { alert(err.message); }
             setLoading(false);
         };
         reader.readAsBinaryString(file);
     };
 
+    // Pagination Logic
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentItems = filteredSales.slice(indexOfFirstItem, indexOfLastItem);
+    const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) setCurrentPage(newPage);
+    };
+
     return (
-        <div className="container">
-            <div className="glass-panel" style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
-                <h2 style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem' }}>
-                    Actualizar Ingresos
-                </h2>
+        <div className="container" style={{ padding: '1rem', maxWidth: '100%', height: 'calc(100vh - 80px)', display: 'flex', flexDirection: 'column' }}>
+            <div className="glass-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div style={{ padding: '1rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                    <h2 style={{ fontSize: '1.25rem' }}>Actualizar Ingresos</h2>
 
-                <div style={{ marginBottom: '1.5rem' }}>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)' }}>Mes de Operación</label>
-                    <select
-                        value={month}
-                        onChange={(e) => setMonth(e.target.value)}
-                        style={{ width: '100%', padding: '0.5rem', borderRadius: 'var(--radius-md)' }}
-                    >
-                        <option value="">-- Seleccionar Mes --</option>
-                        {existingMonths.length === 0 && <option disabled>No hay meses registrados</option>}
-                        {existingMonths.map(m => (
-                            <option key={m} value={m}>{m}</option>
-                        ))}
-                    </select>
-                </div>
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <select
+                            value={month}
+                            onChange={e => setMonth(e.target.value)}
+                            style={{ padding: '0.5rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.2)', color: 'white', minWidth: '150px' }}
+                        >
+                            <option value="">-- Seleccionar Mes --</option>
+                            {existingMonths.map(m => <option key={m}>{m}</option>)}
+                        </select>
 
-                <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
-                    <button
-                        className={`btn-primary`}
-                        style={{ background: mode === 'single' ? '' : 'transparent', border: mode === 'single' ? '' : '1px solid var(--glass-border)' }}
-                        onClick={() => { setMode('single'); setIsScanning(false); }}
-                    >
-                        Registro Individual
-                    </button>
-                    <button
-                        className={`btn-primary`}
-                        style={{ background: mode === 'excel' ? '' : 'transparent', border: mode === 'excel' ? '' : '1px solid var(--glass-border)' }}
-                        onClick={() => { setMode('excel'); setIsScanning(false); }}
-                    >
-                        Carga Masiva (Excel)
-                    </button>
-                    <button
-                        className="btn-primary"
-                        style={{ background: isScanning ? 'var(--accent)' : 'transparent', border: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                        onClick={() => {
-                            if (!month) return alert("Selecciona un mes primero");
-                            setIsScanning(!isScanning);
-                            setMode('scan');
-                        }}
-                    >
-                        📷 Escanear Cámara
-                    </button>
+
+                        <button onClick={() => { if (!month) return alert("Selecciona Mes"); setIsScanning(!isScanning); }} disabled={!month} className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', background: 'var(--accent)' }}>
+                            📷 {isScanning ? 'Cerrar Escáner' : 'Escanear'}
+                        </button>
+
+                        <div style={{ position: 'relative', overflow: 'hidden', display: 'inline-block' }}>
+                            <button className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }} disabled={!month}>
+                                📤 Importar Excel
+                            </button>
+                            <input
+                                type="file"
+                                accept=".xlsx"
+                                onChange={handleFileUpload}
+                                disabled={!month}
+                                style={{ position: 'absolute', left: 0, top: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }}
+                            />
+                        </div>
+                    </div>
                 </div>
 
                 {isScanning && (
-                    <Scanner
-                        onScan={handleScanMatch}
-                        onClose={() => setIsScanning(false)}
-                    />
+                    <div style={{ padding: '1rem', background: 'rgba(0,0,0,0.5)' }}>
+                        <Scanner onScan={handleScanMatch} onClose={() => setIsScanning(false)} />
+                    </div>
                 )}
 
-                {/* Scan Result Modal */}
+                {/* Scan Result Modal Overlays */}
                 {scanResult && (
-                    <div style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        background: 'rgba(0, 0, 0, 0.85)',
-                        backdropFilter: 'blur(8px)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 1000,
-                        padding: '1rem',
-                        animation: 'fadeIn 0.2s ease-out'
-                    }}>
-                        <div className="glass-panel" style={{
-                            maxWidth: '500px',
-                            width: '100%',
-                            padding: '2rem',
-                            animation: 'slideUp 0.3s ease-out'
-                        }}>
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+                        <div className="glass-panel" style={{ maxWidth: '90%', width: '500px', padding: '2rem' }}>
                             {scanResult.found ? (
                                 <>
-                                    {/* Success State */}
-                                    <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                                        <div style={{
-                                            width: '80px',
-                                            height: '80px',
-                                            borderRadius: '50%',
-                                            background: 'linear-gradient(135deg, #10b981, #059669)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            margin: '0 auto 1rem',
-                                            fontSize: '3rem',
-                                            animation: 'scaleIn 0.4s ease-out'
-                                        }}>
-                                            ✓
-                                        </div>
-                                        <h2 style={{ color: '#10b981', marginBottom: '0.5rem', fontSize: '1.5rem' }}>
-                                            ¡ICCID Encontrado!
-                                        </h2>
-                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                                            Se encontró un registro coincidente
-                                        </p>
+                                    <div style={{ textAlign: 'center', marginBottom: '1.5rem', color: '#10b981', fontSize: '1.5rem' }}>✓ ¡ICCID Encontrado!</div>
+                                    <div style={{ marginBottom: '1rem' }}>
+                                        <strong>Número:</strong> {scanResult.data.NUMERO}<br />
+                                        <strong>ICCID:</strong> {scanResult.data.ICCID}<br />
+                                        <strong>Estado:</strong> {scanResult.data.REGISTRO_SIM ? 'Registrado' : 'No Registrado'}
                                     </div>
-
-                                    {/* Data Display */}
-                                    <div style={{
-                                        background: 'rgba(255, 255, 255, 0.03)',
-                                        borderRadius: 'var(--radius-md)',
-                                        padding: '1.5rem',
-                                        marginBottom: '1.5rem',
-                                        border: '1px solid rgba(16, 185, 129, 0.2)'
-                                    }}>
-                                        <div style={{ marginBottom: '1rem' }}>
-                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                                Número de Teléfono
-                                            </label>
-                                            <div style={{
-                                                fontSize: '1.5rem',
-                                                fontWeight: '700',
-                                                color: 'var(--primary)',
-                                                fontFamily: 'monospace'
-                                            }}>
-                                                {scanResult.data.NUMERO}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                                ICCID Escaneado
-                                            </label>
-                                            <div style={{
-                                                fontSize: '0.95rem',
-                                                color: 'var(--text-main)',
-                                                fontFamily: 'monospace',
-                                                wordBreak: 'break-all'
-                                            }}>
-                                                {scanResult.data.ICCID}
-                                            </div>
-                                        </div>
-                                        {scanResult.data.REGISTRO_SIM !== null && (
-                                            <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'rgba(0,0,0,0.2)', borderRadius: '6px' }}>
-                                                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
-                                                    Estado Actual
-                                                </label>
-                                                <div style={{
-                                                    fontSize: '0.9rem',
-                                                    color: scanResult.data.REGISTRO_SIM ? '#10b981' : '#f59e0b',
-                                                    fontWeight: '600'
-                                                }}>
-                                                    {scanResult.data.REGISTRO_SIM ? '✓ Registrado' : '⚠ No Registrado'}
-                                                </div>
-                                            </div>
-                                        )}
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+                                        <button onClick={() => handleMarkRegistroSIM(true)} className="btn-primary" style={{ background: '#10b981' }}>✓ VERDADERO</button>
+                                        <button onClick={() => handleMarkRegistroSIM(false)} className="btn-primary" style={{ background: '#ef4444' }}>✗ FALSO</button>
                                     </div>
-
-                                    {/* Action Buttons */}
-                                    <div style={{
-                                        borderTop: '1px solid var(--glass-border)',
-                                        paddingTop: '1.5rem',
-                                        marginBottom: '1rem'
-                                    }}>
-                                        <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1rem', textAlign: 'center' }}>
-                                            Actualizar estado de REGISTRO SIM:
-                                        </p>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                            <button
-                                                onClick={() => handleMarkRegistroSIM(true)}
-                                                disabled={loading}
-                                                style={{
-                                                    background: 'linear-gradient(135deg, #10b981, #059669)',
-                                                    color: 'white',
-                                                    border: 'none',
-                                                    padding: '1rem',
-                                                    borderRadius: 'var(--radius-md)',
-                                                    fontWeight: '700',
-                                                    fontSize: '1rem',
-                                                    cursor: loading ? 'not-allowed' : 'pointer',
-                                                    transition: 'transform 0.2s, box-shadow 0.2s',
-                                                    opacity: loading ? 0.6 : 1,
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    alignItems: 'center',
-                                                    gap: '0.5rem'
-                                                }}
-                                                onMouseEnter={(e) => !loading && (e.target.style.transform = 'translateY(-2px)')}
-                                                onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
-                                            >
-                                                <span style={{ fontSize: '1.5rem' }}>✓</span>
-                                                <span>VERDADERO</span>
-                                            </button>
-                                            <button
-                                                onClick={() => handleMarkRegistroSIM(false)}
-                                                disabled={loading}
-                                                style={{
-                                                    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-                                                    color: 'white',
-                                                    border: 'none',
-                                                    padding: '1rem',
-                                                    borderRadius: 'var(--radius-md)',
-                                                    fontWeight: '700',
-                                                    fontSize: '1rem',
-                                                    cursor: loading ? 'not-allowed' : 'pointer',
-                                                    transition: 'transform 0.2s, box-shadow 0.2s',
-                                                    opacity: loading ? 0.6 : 1,
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    alignItems: 'center',
-                                                    gap: '0.5rem'
-                                                }}
-                                                onMouseEnter={(e) => !loading && (e.target.style.transform = 'translateY(-2px)')}
-                                                onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
-                                            >
-                                                <span style={{ fontSize: '1.5rem' }}>✗</span>
-                                                <span>FALSO</span>
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <button
-                                        onClick={closeScanResult}
-                                        disabled={loading}
-                                        style={{
-                                            width: '100%',
-                                            background: 'transparent',
-                                            color: 'var(--text-muted)',
-                                            border: '1px solid var(--glass-border)',
-                                            padding: '0.75rem',
-                                            borderRadius: 'var(--radius-md)',
-                                            fontWeight: '500',
-                                            cursor: loading ? 'not-allowed' : 'pointer',
-                                            transition: 'all 0.2s',
-                                            opacity: loading ? 0.4 : 1
-                                        }}
-                                        onMouseEnter={(e) => !loading && (e.target.style.borderColor = 'var(--primary)')}
-                                        onMouseLeave={(e) => e.target.style.borderColor = 'var(--glass-border)'}
-                                    >
-                                        {loading ? 'Procesando...' : 'Cancelar y Seguir Escaneando'}
-                                    </button>
+                                    <button onClick={closeScanResult} style={{ marginTop: '1rem', width: '100%', padding: '0.5rem', background: 'transparent', border: '1px solid white', color: 'white', borderRadius: '4px' }}>Cancelar</button>
                                 </>
                             ) : (
-                                <>
-                                    {/* Error/Not Found State */}
-                                    <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                                        <div style={{
-                                            width: '80px',
-                                            height: '80px',
-                                            borderRadius: '50%',
-                                            background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            margin: '0 auto 1rem',
-                                            fontSize: '3rem',
-                                            animation: 'scaleIn 0.4s ease-out'
-                                        }}>
-                                            ⚠
-                                        </div>
-                                        <h2 style={{ color: '#f59e0b', marginBottom: '0.5rem', fontSize: '1.5rem' }}>
-                                            ICCID No Encontrado
-                                        </h2>
-                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                                            No se encontró ningún registro en el mes seleccionado
-                                        </p>
+                                <div style={{ textAlign: 'center' }}>
+                                    <h3 style={{ color: '#f59e0b' }}>ICCID No Encontrado</h3>
+                                    <p>{scanResult.iccid}</p>
+                                    <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <button onClick={() => { setScanResult(null); setIsScanning(true); }} className="btn-primary">Seguir Escaneando</button>
+                                        <button onClick={() => setScanResult(null)} className="btn-secondary">Cerrar</button>
                                     </div>
-
-                                    <div style={{
-                                        background: 'rgba(245, 158, 11, 0.1)',
-                                        borderRadius: 'var(--radius-md)',
-                                        padding: '1.5rem',
-                                        marginBottom: '1.5rem',
-                                        border: '1px solid rgba(245, 158, 11, 0.2)'
-                                    }}>
-                                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                            ICCID Escaneado
-                                        </label>
-                                        <div style={{
-                                            fontSize: '1rem',
-                                            color: 'var(--text-main)',
-                                            fontFamily: 'monospace',
-                                            wordBreak: 'break-all',
-                                            marginBottom: '1rem'
-                                        }}>
-                                            {scanResult.iccid}
-                                        </div>
-                                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>
-                                            <p style={{ marginBottom: '0.5rem' }}>• Verifica que el mes seleccionado sea correcto</p>
-                                            <p style={{ marginBottom: '0.5rem' }}>• Asegúrate de que el ICCID esté en la base de datos</p>
-                                            <p>• El código puede no estar registrado aún</p>
-                                        </div>
-                                    </div>
-
-                                    <button
-                                        onClick={closeScanResult}
-                                        style={{
-                                            width: '100%',
-                                            background: 'linear-gradient(135deg, var(--primary), var(--primary-hover))',
-                                            color: 'white',
-                                            border: 'none',
-                                            padding: '1rem',
-                                            borderRadius: 'var(--radius-md)',
-                                            fontWeight: '600',
-                                            fontSize: '1rem',
-                                            cursor: 'pointer',
-                                            transition: 'transform 0.2s'
-                                        }}
-                                        onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
-                                        onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
-                                    >
-                                        Continuar Escaneando
-                                    </button>
-                                </>
+                                </div>
                             )}
                         </div>
                     </div>
                 )}
 
-
                 {result && (
-                    <div style={{
-                        background: 'rgba(16, 185, 129, 0.2)',
-                        border: '1px solid rgba(16, 185, 129, 0.4)',
-                        color: '#34d399',
-                        padding: '1rem',
-                        borderRadius: 'var(--radius-md)',
-                        marginBottom: '1.5rem'
-                    }}>
-                        <strong>Resultado:</strong> {result.updated} actualizados/creados, {result.skipped} omitidos.
-                        {result.errors.length > 0 && <div style={{ color: '#f87171', marginTop: '0.5rem' }}>Errores: {result.errors.length}</div>}
+                    <div style={{ padding: '0.5rem 1rem', background: 'rgba(16, 185, 129, 0.1)', color: '#34d399', fontSize: '0.9rem' }}>
+                        Última operación: {result.updated} actualizados, {result.skipped} omitidos.
                     </div>
                 )}
 
-                {(mode === 'single' || mode === 'scan') && !isScanning && (
-                    <form onSubmit={handleSingleSubmit} style={{ display: 'grid', gap: '1rem' }}>
-                        <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px' }}>
-                            <h3 style={{ marginBottom: '1rem', fontSize: '1rem', color: 'var(--primary)' }}>Datos de la Venta</h3>
-                            <div>
-                                <label>Número *</label>
-                                <input
-                                    required
-                                    value={formData.NUMERO}
-                                    onChange={e => setFormData({ ...formData, NUMERO: e.target.value })}
-                                    placeholder="Ej: 3001234567"
-                                />
-                            </div>
-                            <div style={{ marginTop: '1rem' }}>
-                                <label>ICCID (Opcional)</label>
-                                <input
-                                    value={formData.ICCID}
-                                    onChange={e => setFormData({ ...formData, ICCID: e.target.value })}
-                                    placeholder="Ej: 8957..."
-                                />
-                            </div>
-                        </div>
+                <div style={{ padding: '0.5rem 1rem', display: 'flex', justifyContent: 'flex-end' }}>
+                    <button onClick={clearFilters} style={{ fontSize: '0.8rem', color: '#f87171', background: 'transparent', border: 'none', cursor: 'pointer' }}>Limpiar Filtros</button>
+                </div>
 
-                        <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '1rem' }}>
-                            <label style={{ color: 'var(--accent)', fontWeight: 'bold' }}>Registro SIM *</label>
-                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-                                Confirme si el registro físico llegó correctamente.
-                            </p>
+                <div className="table-container" style={{ flex: 1, overflow: 'auto' }}>
+                    <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                        <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--card-bg)' }}>
+                            <tr>
+                                {columns.map(col => (
+                                    <th key={col} style={{ padding: '0.75rem', textAlign: 'left', minWidth: '150px' }}>
+                                        <div style={{ marginBottom: '0.25rem' }}>{col.replace('_', ' ')}</div>
+                                        {selectFields.includes(col) ? (
+                                            <select
+                                                value={filters[col]}
+                                                onChange={(e) => handleFilterChange(col, e.target.value)}
+                                                style={{ width: '100%', padding: '0.2rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', borderRadius: '4px' }}
+                                            >
+                                                <option value="">Todos</option>
+                                                {(uniqueValues[col] || []).map(val => <option key={val} value={val}>{val === 'true' ? 'VERDADERO' : val === 'false' ? 'FALSO' : val}</option>)}
+                                            </select>
+                                        ) : (
+                                            <input value={filters[col]} onChange={(e) => handleFilterChange(col, e.target.value)} placeholder="..." style={{ width: '100%', padding: '0.2rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', borderRadius: '4px' }} />
+                                        )}
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {currentItems.map((item, index) => (
+                                <tr
+                                    key={index}
+                                    onDoubleClick={() => handleEditClick(item)}
+                                    style={{
+                                        borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                        cursor: 'pointer',
+                                        background: index % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent'
+                                    }}
+                                    className="table-row-hover"
+                                >
+                                    <td style={{ padding: '0.6rem' }}>{item.NUMERO}</td>
+                                    <td style={{ padding: '0.6rem' }}>{item.REGISTRO_SIM ? 'VERDADERO' : (item.REGISTRO_SIM === false ? 'FALSO' : '')}</td>
+                                    <td style={{ padding: '0.6rem' }}>{item.FECHA_INGRESO}</td>
+                                    <td style={{ padding: '0.6rem' }}>{item.ICCID}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Pagination Controls */}
+                {filteredSales.length > 0 && (
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '1rem',
+                        borderTop: '1px solid var(--glass-border)',
+                        background: 'var(--bg-secondary)'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            <span>Filas por página:</span>
                             <select
-                                value={formData.REGISTRO_SIM}
-                                onChange={e => setFormData({ ...formData, REGISTRO_SIM: e.target.value })}
-                                style={{ width: '100%', padding: '0.75rem', fontWeight: 'bold' }}
+                                value={itemsPerPage}
+                                onChange={(e) => {
+                                    setItemsPerPage(Number(e.target.value));
+                                    setCurrentPage(1);
+                                }}
+                                style={{
+                                    padding: '0.2rem',
+                                    fontSize: '0.8rem',
+                                    borderRadius: '4px',
+                                    border: '1px solid var(--glass-border)',
+                                    background: 'var(--bg-card)',
+                                    color: 'white'
+                                }}
                             >
-                                <option value="">(Seleccionar)</option>
-                                <option value="true">VERDADERO (Sí)</option>
-                                <option value="false">FALSO (No)</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                                <option value={200}>200</option>
+                                <option value={500}>500</option>
                             </select>
+                            <span>Página {currentPage} de {totalPages || 1} ({filteredSales.length} registros)</span>
                         </div>
 
-                        <div>
-                            <label>Fecha Ingreso (Opcional)</label>
-                            <input
-                                type="date"
-                                value={formData.FECHA_INGRESO}
-                                onChange={e => setFormData({ ...formData, FECHA_INGRESO: e.target.value })}
-                            />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <button
+                                onClick={() => handlePageChange(currentPage - 1)}
+                                disabled={currentPage === 1}
+                                className="btn-secondary"
+                                style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', opacity: currentPage === 1 ? 0.5 : 1 }}
+                            >
+                                Anterior
+                            </button>
+                            <button
+                                onClick={() => handlePageChange(currentPage + 1)}
+                                disabled={currentPage === totalPages}
+                                className="btn-secondary"
+                                style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', opacity: currentPage === totalPages ? 0.5 : 1 }}
+                            >
+                                Siguiente
+                            </button>
                         </div>
-                        <button type="submit" disabled={loading} className="btn-primary" style={{ marginTop: '1rem' }}>
-                            {loading ? 'Guardando...' : 'Actualizar Ingreso'}
-                        </button>
-                    </form>
-                )}
-
-                {mode === 'excel' && (
-                    <div style={{ textAlign: 'center', padding: '2rem', border: '2px dashed var(--glass-border)', borderRadius: 'var(--radius-md)' }}>
-                        <p style={{ marginBottom: '1rem' }}>Sube un archivo Excel con: <code>NUMERO</code>, <code>REGISTRO SIM</code>, <code>FECHA INGRESO</code>, <code>ICCID</code></p>
-                        <input
-                            type="file"
-                            accept=".xlsx, .xls"
-                            onChange={handleFileUpload}
-                            disabled={loading}
-                        />
                     </div>
                 )}
             </div>
+
+            {/* Edit Modal */}
+            {isEditModalOpen && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="glass-panel" style={{ width: '400px', padding: '2rem' }}>
+                        <h3 style={{ marginBottom: '1.5rem' }}>{isNewRecord ? 'Nuevo Registro' : 'Editar Registro'}</h3>
+                        <form onSubmit={handleSave}>
+                            <div style={{ marginBottom: '1rem' }}>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Número</label>
+                                <input required value={editForm.NUMERO} onChange={e => setEditForm({ ...editForm, NUMERO: e.target.value })} style={{ width: '100%', padding: '0.5rem' }} disabled={!isNewRecord} />
+                            </div>
+                            <div style={{ marginBottom: '1rem' }}>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Registro SIM</label>
+                                <select
+                                    value={editForm.REGISTRO_SIM === true ? 'true' : editForm.REGISTRO_SIM === false ? 'false' : ''}
+                                    onChange={e => setEditForm({ ...editForm, REGISTRO_SIM: e.target.value })}
+                                    style={{ width: '100%', padding: '0.5rem' }}
+                                >
+                                    <option value="">(Seleccionar)</option>
+                                    <option value="true">VERDADERO</option>
+                                    <option value="false">FALSO</option>
+                                </select>
+                            </div>
+                            <div style={{ marginBottom: '1rem' }}>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Fecha Ingreso</label>
+                                <input type="date" value={editForm.FECHA_INGRESO || ''} onChange={e => setEditForm({ ...editForm, FECHA_INGRESO: e.target.value })} style={{ width: '100%', padding: '0.5rem' }} />
+                            </div>
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>ICCID</label>
+                                <input value={editForm.ICCID || ''} onChange={e => setEditForm({ ...editForm, ICCID: e.target.value })} style={{ width: '100%', padding: '0.5rem' }} />
+                            </div>
+                            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                                <button type="button" onClick={() => setIsEditModalOpen(false)} className="btn-secondary" disabled={loading}>Cancelar</button>
+                                <button type="submit" className="btn-primary" disabled={loading}>{loading ? 'Guardando...' : 'Guardar'}</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

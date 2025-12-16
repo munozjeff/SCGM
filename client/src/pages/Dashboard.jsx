@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getSalesByMonth, getAllMonths } from '../services/SalesService';
+import { getAllMonths, listenToSalesByMonth } from '../services/SalesService';
 import * as XLSX from 'xlsx';
 
 export default function Dashboard() {
@@ -13,10 +13,21 @@ export default function Dashboard() {
         loadMonths();
     }, []);
 
+    // Real-time metrics listener
     useEffect(() => {
-        if (selectedMonth) {
-            loadSalesAndCalculateMetrics(selectedMonth);
-        }
+        if (!selectedMonth) return;
+
+        setLoading(true);
+
+        const unsubscribe = listenToSalesByMonth(selectedMonth, (salesData) => {
+            setSales(salesData);
+            calculateAllMetrics(salesData);
+            setLoading(false);
+        });
+
+        return () => {
+            if (unsubscribe) unsubscribe();
+        };
     }, [selectedMonth]);
 
     const loadMonths = async () => {
@@ -28,20 +39,6 @@ export default function Dashboard() {
             }
         } catch (error) {
             console.error('Error loading months:', error);
-        }
-    };
-
-    const loadSalesAndCalculateMetrics = async (month) => {
-        setLoading(true);
-        try {
-            const salesData = await getSalesByMonth(month);
-            setSales(salesData);
-            calculateAllMetrics(salesData);
-        } catch (error) {
-            console.error('Error loading sales:', error);
-            alert('Error al cargar datos del mes');
-        } finally {
-            setLoading(false);
         }
     };
 

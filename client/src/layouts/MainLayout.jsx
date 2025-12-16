@@ -53,7 +53,7 @@ export default function MainLayout() {
                     onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
                     style={{
                         position: 'absolute',
-                        right: '-12px',
+                        right: '0px',
                         top: '24px',
                         width: '24px',
                         height: '24px',

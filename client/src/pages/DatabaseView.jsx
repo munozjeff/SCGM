@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getAllMonths, listenToSalesByMonth } from '../services/SalesService';
+import { getAllMonths, listenToSalesByMonth, importSales } from '../services/SalesService';
+import * as XLSX from 'xlsx';
 
 export default function DatabaseView() {
     const [months, setMonths] = useState([]);
@@ -7,6 +8,10 @@ export default function DatabaseView() {
     const [sales, setSales] = useState([]);
     const [filteredSales, setFilteredSales] = useState([]);
     const [loading, setLoading] = useState(false);
+
+    // Paginación
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(50);
 
     // Todas las columnas
     const columns = [
@@ -113,17 +118,159 @@ export default function DatabaseView() {
 
     const handleFilterChange = (field, value) => {
         setFilters({ ...filters, [field]: value });
+        setCurrentPage(1); // Reset a primera pagina al filtrar
     };
 
     const clearFilters = () => {
         setFilters(columns.reduce((acc, col) => ({ ...acc, [col]: '' }), {}));
     };
 
+    const handleExportExcel = () => {
+        if (filteredSales.length === 0) return alert("No hay datos para exportar.");
+
+        const dataToExport = filteredSales.map(sale => {
+            const row = {};
+            columns.forEach(col => {
+                let val = sale[col];
+                if (col === 'REGISTRO_SIM' && typeof val === 'boolean') {
+                    val = val ? 'SÍ' : 'NO';
+                }
+                row[col.replace(/_/g, ' ')] = val;
+            });
+            return row;
+        });
+
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "BaseDatos");
+        XLSX.writeFile(wb, `BaseDatos_${selectedMonth || 'Export'}.xlsx`);
+    };
+
+    const handleImportClick = () => {
+        document.getElementById('import-excel-input').click();
+    };
+
+    const handleFileChange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (!selectedMonth) {
+            alert("Por favor selecciona un mes antes de importar.");
+            e.target.value = ''; // Reset input
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+            try {
+                const bstr = evt.target.result;
+                const workbook = XLSX.read(bstr, { type: 'binary' });
+                const wsname = workbook.SheetNames[0];
+                const ws = workbook.Sheets[wsname];
+                const data = XLSX.utils.sheet_to_json(ws);
+
+                if (data.length === 0) {
+                    alert("El archivo parece estar vacío.");
+                    return;
+                }
+
+                // Normalización de claves (Headers)
+                // Convertir "REGISTRO SIM" -> "REGISTRO_SIM", etc.
+                const normalizedData = data.map(row => {
+                    const newRow = {};
+                    Object.keys(row).forEach(key => {
+                        // Reemplazar espacios por _ y mayúsculas
+                        const normalizedKey = key.trim().toUpperCase().replace(/\s+/g, '_');
+                        newRow[normalizedKey] = row[key];
+                    });
+                    return newRow;
+                });
+
+                if (confirm(`Se van a procesar ${normalizedData.length} registros en el mes ${selectedMonth}. ¿Continuar?`)) {
+                    setLoading(true);
+                    const result = await importSales(selectedMonth, normalizedData);
+                    setLoading(false);
+
+                    let message = `Importación completada.\n\n` +
+                        `✅ Agregados: ${result.added}\n` +
+                        `🔄 Actualizados: ${result.updated}\n` +
+                        `⏭️ Omitidos: ${result.skipped}\n`;
+
+                    if (result.errors.length > 0) {
+                        message += `\n❌ Errores (${result.errors.length}):\n` + result.errors.slice(0, 5).join('\n') + (result.errors.length > 5 ? '\n...' : '');
+                    }
+
+                    alert(message);
+                    // Forzar recarga si es necesario, aunque el listener debería hacerlo
+                    // loadSales(selectedMonth); // El listener ya actualiza `sales`
+                }
+
+            } catch (error) {
+                console.error("Error importing file:", error);
+                alert("Error al procesar el archivo: " + error.message);
+                setLoading(false);
+            } finally {
+                e.target.value = ''; // Reset para permitir importar el mismo archivo de nuevo si se desea
+            }
+        };
+        reader.readAsBinaryString(file);
+    };
+
     return (
         <div className="container" style={{ maxWidth: '100%', padding: '1rem' }}>
             <div className="glass-panel" style={{ padding: '1.5rem' }}>
-                <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem', fontSize: '1.2rem' }}>
-                    Base de Datos
+                <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem', fontSize: '1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Base de Datos</span>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        {/* Input file oculto */}
+                        <input
+                            type="file"
+                            id="import-excel-input"
+                            accept=".xlsx, .xls"
+                            style={{ display: 'none' }}
+                            onChange={handleFileChange}
+                        />
+                        <button
+                            onClick={handleImportClick}
+                            disabled={!selectedMonth || loading}
+                            style={{
+                                fontSize: '0.8rem',
+                                padding: '0.5rem 1rem',
+                                background: 'var(--primary)',
+                                border: 'none',
+                                borderRadius: '4px',
+                                color: 'white',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                opacity: (!selectedMonth || loading) ? 0.6 : 1
+                            }}
+                            title={!selectedMonth ? "Selecciona un mes primero" : "Importar Excel"}
+                        >
+                            📤 Importar Excel
+                        </button>
+
+                        {filteredSales.length > 0 && (
+                            <button
+                                onClick={handleExportExcel}
+                                style={{
+                                    fontSize: '0.8rem',
+                                    padding: '0.5rem 1rem',
+                                    background: '#10b981',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    color: 'white',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem'
+                                }}
+                            >
+                                📥 Exportar Excel
+                            </button>
+                        )}
+                    </div>
                 </h2>
 
                 {/* Selector de Mes */}
@@ -205,92 +352,170 @@ export default function DatabaseView() {
 
                 {/* Resultados */}
                 {sales.length > 0 && (
-                    <div style={{ marginBottom: '0.75rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                        {filteredSales.length} de {sales.length} registros
+                    <div style={{ marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                        <span>{filteredSales.length} registros encontrados (Total: {sales.length})</span>
                     </div>
                 )}
 
-                {/* Tabla ultra compacta */}
-                {loading ? (
-                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                        Cargando datos...
-                    </div>
-                ) : filteredSales.length > 0 ? (
-                    <div style={{ overflowY: 'auto', maxHeight: '500px' }}>
-                        <table style={{
-                            width: '100%',
-                            borderCollapse: 'collapse',
-                            fontSize: '0.6rem',
-                            tableLayout: 'fixed'
-                        }}>
-                            <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-panel)', zIndex: 10 }}>
-                                <tr style={{ borderBottom: '2px solid var(--glass-border)' }}>
-                                    {columns.map(col => (
-                                        <th key={col} style={{
-                                            padding: '0.35rem 0.25rem',
-                                            textAlign: 'left',
-                                            color: 'var(--primary)',
+                {/* Lógica de Paginación */}
+                {(() => {
+                    const indexOfLastItem = currentPage * itemsPerPage;
+                    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+                    const currentItems = filteredSales.slice(indexOfFirstItem, indexOfLastItem);
+                    const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
+
+                    const handlePageChange = (newPage) => {
+                        if (newPage >= 1 && newPage <= totalPages) {
+                            setCurrentPage(newPage);
+                        }
+                    };
+
+                    return (
+                        <>
+                            {/* Tabla ultra compacta */}
+                            {loading ? (
+                                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                                    Cargando datos...
+                                </div>
+                            ) : filteredSales.length > 0 ? (
+                                <>
+                                    <div style={{ overflowY: 'auto', maxHeight: '500px' }}>
+                                        <table style={{
+                                            width: '100%',
+                                            borderCollapse: 'collapse',
                                             fontSize: '0.6rem',
-                                            fontWeight: '600',
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis',
-                                            whiteSpace: 'nowrap'
+                                            tableLayout: 'fixed'
                                         }}>
-                                            {col.replace(/_/g, ' ')}
-                                        </th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredSales.map((sale, index) => (
-                                    <tr
-                                        key={sale.NUMERO}
-                                        style={{
-                                            borderBottom: '1px solid var(--glass-border)',
-                                            background: index % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent'
-                                        }}
-                                    >
-                                        {columns.map(col => {
-                                            let displayValue = sale[col];
+                                            <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-panel)', zIndex: 10 }}>
+                                                <tr style={{ borderBottom: '2px solid var(--glass-border)' }}>
+                                                    {columns.map(col => (
+                                                        <th key={col} style={{
+                                                            padding: '0.35rem 0.25rem',
+                                                            textAlign: 'left',
+                                                            color: 'var(--primary)',
+                                                            fontSize: '0.6rem',
+                                                            fontWeight: '600',
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis',
+                                                            whiteSpace: 'nowrap'
+                                                        }}>
+                                                            {col.replace(/_/g, ' ')}
+                                                        </th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {currentItems.map((sale, index) => (
+                                                    <tr
+                                                        key={sale.NUMERO}
+                                                        style={{
+                                                            borderBottom: '1px solid var(--glass-border)',
+                                                            background: index % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent'
+                                                        }}
+                                                    >
+                                                        {columns.map(col => {
+                                                            let displayValue = sale[col];
 
-                                            // Convert REGISTRO_SIM boolean to SÍ/NO
-                                            if (col === 'REGISTRO_SIM' && typeof displayValue === 'boolean') {
-                                                displayValue = displayValue ? 'SÍ' : 'NO';
-                                            }
+                                                            // Convert REGISTRO_SIM boolean to SÍ/NO
+                                                            if (col === 'REGISTRO_SIM' && typeof displayValue === 'boolean') {
+                                                                displayValue = displayValue ? 'SÍ' : 'NO';
+                                                            }
 
-                                            // Convert to string for display and title
-                                            const valueStr = displayValue != null ? String(displayValue) : '-';
+                                                            // Convert to string for display and title
+                                                            const valueStr = displayValue != null ? String(displayValue) : '-';
 
-                                            return (
-                                                <td key={col} style={{
-                                                    padding: '0.35rem 0.25rem',
-                                                    color: col === 'NUMERO' ? 'white' : 'var(--text-muted)',
-                                                    fontWeight: col === 'NUMERO' ? '600' : 'normal',
-                                                    fontSize: '0.6rem',
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                    whiteSpace: 'nowrap'
+                                                            return (
+                                                                <td key={col} style={{
+                                                                    padding: '0.35rem 0.25rem',
+                                                                    color: col === 'NUMERO' ? 'white' : 'var(--text-muted)',
+                                                                    fontWeight: col === 'NUMERO' ? '600' : 'normal',
+                                                                    fontSize: '0.6rem',
+                                                                    overflow: 'hidden',
+                                                                    textOverflow: 'ellipsis',
+                                                                    whiteSpace: 'nowrap'
+                                                                }}
+                                                                    title={valueStr}
+                                                                >
+                                                                    {valueStr}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {/* Controles de Paginación */}
+                                    <div style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        marginTop: '1rem',
+                                        paddingTop: '1rem',
+                                        borderTop: '1px solid var(--glass-border)',
+                                        fontSize: '0.8rem',
+                                        color: 'var(--text-muted)'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                            <span>Filas por página:</span>
+                                            <select
+                                                value={itemsPerPage}
+                                                onChange={(e) => {
+                                                    setItemsPerPage(Number(e.target.value));
+                                                    setCurrentPage(1);
                                                 }}
-                                                    title={valueStr}
-                                                >
-                                                    {valueStr}
-                                                </td>
-                                            );
-                                        })}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                ) : sales.length === 0 && selectedMonth ? (
-                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                        No hay datos para este mes
-                    </div>
-                ) : (
-                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                        Selecciona un mes para ver los datos
-                    </div>
-                )}
+                                                style={{
+                                                    padding: '0.2rem',
+                                                    fontSize: '0.8rem',
+                                                    borderRadius: '4px',
+                                                    border: '1px solid var(--glass-border)',
+                                                    background: 'var(--bg-card)',
+                                                    color: 'white'
+                                                }}
+                                            >
+                                                <option value={50}>50</option>
+                                                <option value={100}>100</option>
+                                                <option value={200}>200</option>
+                                                <option value={500}>500</option>
+                                            </select>
+                                        </div>
+
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <button
+                                                onClick={() => handlePageChange(currentPage - 1)}
+                                                disabled={currentPage === 1}
+                                                className="btn-secondary"
+                                                style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', opacity: currentPage === 1 ? 0.5 : 1 }}
+                                            >
+                                                Anterior
+                                            </button>
+                                            <span style={{ margin: '0 0.5rem' }}>
+                                                Página <strong style={{ color: 'white' }}>{currentPage}</strong> de {totalPages}
+                                            </span>
+                                            <button
+                                                onClick={() => handlePageChange(currentPage + 1)}
+                                                disabled={currentPage === totalPages}
+                                                className="btn-secondary"
+                                                style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', opacity: currentPage === totalPages ? 0.5 : 1 }}
+                                            >
+                                                Siguiente
+                                            </button>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : sales.length === 0 && selectedMonth ? (
+                                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                                    No hay datos para este mes
+                                </div>
+                            ) : (
+                                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                                    Selecciona un mes para ver los datos
+                                </div>
+                            )}
+                        </>
+                    );
+                })()}
             </div>
         </div>
     );

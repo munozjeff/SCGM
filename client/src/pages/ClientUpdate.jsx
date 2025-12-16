@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { updateClientInfo, getAllMonths } from '../services/SalesService';
+import { updateClientInfo, getAllMonths, listenToSalesByMonth } from '../services/SalesService';
 import * as XLSX from 'xlsx';
 
 export default function ClientUpdate() {
@@ -9,7 +9,24 @@ export default function ClientUpdate() {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
 
-    // Cargar meses al montar
+    const [sales, setSales] = useState([]);
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(50);
+
+    // Filters State
+    const [filters, setFilters] = useState({
+        NUMERO: '',
+        CONTACTO_1: '',
+        CONTACTO_2: '',
+        NOMBRE: ''
+    });
+
+    const [modalOpen, setModalOpen] = useState(false);
+    const [selectedRecord, setSelectedRecord] = useState(null);
+
+    // Initial Load
     useEffect(() => {
         const fetchMonths = async () => {
             try {
@@ -22,7 +39,18 @@ export default function ClientUpdate() {
         fetchMonths();
     }, []);
 
-    // Single Entry State
+    // Real-time Listener
+    useEffect(() => {
+        if (!month) return;
+        setLoading(true);
+        const unsubscribe = listenToSalesByMonth(month, (data) => {
+            setSales(data);
+            setLoading(false);
+        });
+        return () => { if (unsubscribe) unsubscribe(); };
+    }, [month]);
+
+    // Single Entry / Edit Form Data
     const [formData, setFormData] = useState({
         NUMERO: '',
         CONTACTO_1: '',
@@ -30,19 +58,46 @@ export default function ClientUpdate() {
         NOMBRE: ''
     });
 
+    // Filter Logic
+    const getFilteredSales = () => {
+        return sales.filter(item => {
+            const matchNumero = item.NUMERO?.toString().includes(filters.NUMERO) || filters.NUMERO === '';
+            const matchC1 = item.CONTACTO_1?.toString().includes(filters.CONTACTO_1) || filters.CONTACTO_1 === '';
+            const matchC2 = item.CONTACTO_2?.toString().includes(filters.CONTACTO_2) || filters.CONTACTO_2 === '';
+            const matchNombre = item.NOMBRE?.toString().toLowerCase().includes(filters.NOMBRE.toLowerCase()) || filters.NOMBRE === '';
+            return matchNumero && matchC1 && matchC2 && matchNombre;
+        });
+    };
+
+    const handleFilterChange = (e) => {
+        const { name, value } = e.target;
+        setFilters(prev => ({ ...prev, [name]: value }));
+        setCurrentPage(1); // Reset page on filter
+    };
+
+    const handleDoubleClick = (record) => {
+        setFormData({
+            NUMERO: record.NUMERO,
+            CONTACTO_1: record.CONTACTO_1 || '',
+            CONTACTO_2: record.CONTACTO_2 || '',
+            NOMBRE: record.NOMBRE || ''
+        });
+        setModalOpen(true);
+    };
+
     const handleSingleSubmit = async (e) => {
         e.preventDefault();
-        if (!month) {
-            alert("Por favor seleccione un mes de operación.");
-            return;
-        }
+        if (!month) return;
+
         setLoading(true);
         setResult(null);
         try {
             const res = await updateClientInfo(month, [formData]);
             setResult(res);
             if (res.updated > 0) {
-                setFormData({ NUMERO: '', CONTACTO_1: '', CONTACTO_2: '', NOMBRE: '' });
+                setModalOpen(false); // Close if updated
+                // Reset form data if in 'new entry' mode, but here we only have edit mode via table or modal.
+                // If it was a new entry, we should clear. If edit, we close.
             }
         } catch (err) {
             alert("Error: " + err.message);
@@ -73,7 +128,6 @@ export default function ClientUpdate() {
                 const data = XLSX.utils.sheet_to_json(ws);
 
                 const updates = data.map(row => {
-                    // Mapeo flexible de columnas
                     const numero = row['NUMERO'] || row['Numero'] || row['numero'];
                     const contacto1 = row['CONTACTO_1'] || row['Contacto 1'] || row['CONTACTO 1'] || row['celular'] || row['CELULAR'];
                     const contacto2 = row['CONTACTO_2'] || row['Contacto 2'] || row['CONTACTO 2'];
@@ -102,13 +156,17 @@ export default function ClientUpdate() {
             setLoading(false);
         };
         reader.readAsBinaryString(file);
+        e.target.value = null;
     };
+
+    const filteredData = getFilteredSales();
 
     return (
         <div className="container">
-            <div className="glass-panel" style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
-                <h2 style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem' }}>
-                    Actualizar Info Cliente
+            <div className="glass-panel" style={{ padding: '2rem' }}>
+                <h2 style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Actualizar Info Cliente</span>
+                    <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>{filteredData.length} registros</span>
                 </h2>
 
                 <div style={{ marginBottom: '1.5rem' }}>
@@ -116,7 +174,7 @@ export default function ClientUpdate() {
                     <select
                         value={month}
                         onChange={(e) => setMonth(e.target.value)}
-                        style={{ width: '100%', padding: '0.5rem', borderRadius: 'var(--radius-md)' }}
+                        style={{ width: '100%', maxWidth: '300px', padding: '0.5rem' }}
                     >
                         <option value="">-- Seleccionar Mes --</option>
                         {existingMonths.map(m => (
@@ -125,99 +183,228 @@ export default function ClientUpdate() {
                     </select>
                 </div>
 
-                <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
-                    <button
-                        className={`btn-primary`}
-                        style={{ background: mode === 'single' ? '' : 'transparent', border: mode === 'single' ? '' : '1px solid var(--glass-border)' }}
-                        onClick={() => setMode('single')}
-                    >
-                        Registro Individual
-                    </button>
-                    <button
-                        className={`btn-primary`}
-                        style={{ background: mode === 'excel' ? '' : 'transparent', border: mode === 'excel' ? '' : '1px solid var(--glass-border)' }}
-                        onClick={() => setMode('excel')}
-                    >
-                        Carga Masiva (Excel)
-                    </button>
-                </div>
+                {month && (() => {
+                    const indexOfLastItem = currentPage * itemsPerPage;
+                    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+                    const currentItems = filteredData.slice(indexOfFirstItem, indexOfLastItem);
+                    const totalPages = Math.ceil(filteredData.length / itemsPerPage);
 
-                {result && (
-                    <div style={{
-                        background: 'rgba(16, 185, 129, 0.2)',
-                        border: '1px solid rgba(16, 185, 129, 0.4)',
-                        color: '#34d399',
-                        padding: '1rem',
-                        borderRadius: 'var(--radius-md)',
-                        marginBottom: '1.5rem'
-                    }}>
-                        <strong>Resultado:</strong> {result.updated} registros actualizados, {result.skipped} omitidos.
-                        {result.errors.length > 0 && <div style={{ color: '#f87171', marginTop: '0.5rem' }}>Errores: {result.errors.length}</div>}
-                    </div>
-                )}
+                    const handlePageChange = (newPage) => {
+                        if (newPage >= 1 && newPage <= totalPages) {
+                            setCurrentPage(newPage);
+                        }
+                    };
 
-                {mode === 'single' ? (
-                    <form onSubmit={handleSingleSubmit} style={{ display: 'grid', gap: '1rem' }}>
-                        <div>
-                            <label>Número *</label>
-                            <input
-                                required
-                                value={formData.NUMERO}
-                                onChange={e => setFormData({ ...formData, NUMERO: e.target.value })}
-                                placeholder="Ej: 3001234567"
-                            />
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                            <div>
-                                <label>Contacto 1 (Empieza por 3, 10 dígitos)</label>
-                                <input
-                                    value={formData.CONTACTO_1}
-                                    onChange={e => setFormData({ ...formData, CONTACTO_1: e.target.value })}
-                                    pattern="3\d{9}"
-                                    title="Debe empezar por 3 y tener 10 dígitos"
-                                />
+                    return (
+                        <div style={{ marginBottom: '2rem' }}>
+                            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+
+                                <label className="btn-primary" style={{ background: 'transparent', border: '1px solid var(--glass-border)', cursor: 'pointer' }}>
+                                    📤 Importar Excel
+                                    <input
+                                        type="file"
+                                        accept=".xlsx, .xls"
+                                        onChange={handleFileUpload}
+                                        style={{ display: 'none' }}
+                                    />
+                                </label>
                             </div>
-                            <div>
-                                <label>Contacto 2 (Empieza por 3, 10 dígitos)</label>
-                                <input
-                                    value={formData.CONTACTO_2}
-                                    onChange={e => setFormData({ ...formData, CONTACTO_2: e.target.value })}
-                                    pattern="3\d{9}"
-                                    title="Debe empezar por 3 y tener 10 dígitos"
-                                />
+
+                            {result && (
+                                <div style={{
+                                    background: result.updated > 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                                    border: result.updated > 0 ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(239, 68, 68, 0.4)',
+                                    color: result.updated > 0 ? '#34d399' : '#f87171',
+                                    padding: '1rem', borderRadius: 'var(--radius-md)', marginBottom: '1.5rem'
+                                }}>
+                                    <strong>Resultado:</strong> {result.updated} registros actualizados, {result.skipped} omitidos.
+                                </div>
+                            )}
+
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
+                                <span>* Doble click en una fila para editar.</span>
+                                <span>Página {currentPage} de {totalPages || 1} ({filteredData.length} registros)</span>
                             </div>
+
+                            <div className="table-container" style={{ maxHeight: '600px', overflowY: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                                    <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-secondary)', zIndex: 5 }}>
+                                        <tr>
+                                            <th style={{ padding: '0.75rem', textAlign: 'left' }}>
+                                                <div style={{ marginBottom: '0.5rem' }}>NÚMERO</div>
+                                                <input name="NUMERO" value={filters.NUMERO} onChange={handleFilterChange} placeholder="Filtrar..." style={{ width: '100%', padding: '0.25rem', background: 'var(--bg-primary)', border: '1px solid var(--glass-border)', color: 'white' }} />
+                                            </th>
+                                            <th style={{ padding: '0.75rem', textAlign: 'left' }}>
+                                                <div style={{ marginBottom: '0.5rem' }}>CONTACTO 1</div>
+                                                <input name="CONTACTO_1" value={filters.CONTACTO_1} onChange={handleFilterChange} placeholder="Filtrar..." style={{ width: '100%', padding: '0.25rem', background: 'var(--bg-primary)', border: '1px solid var(--glass-border)', color: 'white' }} />
+                                            </th>
+                                            <th style={{ padding: '0.75rem', textAlign: 'left' }}>
+                                                <div style={{ marginBottom: '0.5rem' }}>CONTACTO 2</div>
+                                                <input name="CONTACTO_2" value={filters.CONTACTO_2} onChange={handleFilterChange} placeholder="Filtrar..." style={{ width: '100%', padding: '0.25rem', background: 'var(--bg-primary)', border: '1px solid var(--glass-border)', color: 'white' }} />
+                                            </th>
+                                            <th style={{ padding: '0.75rem', textAlign: 'left' }}>
+                                                <div style={{ marginBottom: '0.5rem' }}>NOMBRE</div>
+                                                <input name="NOMBRE" value={filters.NOMBRE} onChange={handleFilterChange} placeholder="Filtrar..." style={{ width: '100%', padding: '0.25rem', background: 'var(--bg-primary)', border: '1px solid var(--glass-border)', color: 'white' }} />
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {loading ? (
+                                            <tr><td colSpan="4" style={{ textAlign: 'center', padding: '2rem' }}>Cargando datos...</td></tr>
+                                        ) : filteredData.length === 0 ? (
+                                            <tr><td colSpan="4" style={{ textAlign: 'center', padding: '2rem' }}>No se encontraron registros.</td></tr>
+                                        ) : (
+                                            currentItems.map((item, index) => (
+                                                <tr
+                                                    key={index}
+                                                    onDoubleClick={() => handleDoubleClick(item)}
+                                                    className="hover-row"
+                                                    style={{ borderBottom: '1px solid var(--glass-border)', cursor: 'pointer' }}
+                                                    title="Doble click para editar"
+                                                >
+                                                    <td style={{ padding: '0.75rem' }}>{item.NUMERO}</td>
+                                                    <td style={{ padding: '0.75rem' }}>{item.CONTACTO_1 || '-'}</td>
+                                                    <td style={{ padding: '0.75rem' }}>{item.CONTACTO_2 || '-'}</td>
+                                                    <td style={{ padding: '0.75rem' }}>{item.NOMBRE || '-'}</td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Control de Paginación */}
+                            {filteredData.length > 0 && (
+                                <div style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    marginTop: '1rem',
+                                    paddingTop: '1rem',
+                                    borderTop: '1px solid var(--glass-border)',
+                                    fontSize: '0.8rem',
+                                    color: 'var(--text-muted)'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                        <span>Filas por página:</span>
+                                        <select
+                                            value={itemsPerPage}
+                                            onChange={(e) => {
+                                                setItemsPerPage(Number(e.target.value));
+                                                setCurrentPage(1);
+                                            }}
+                                            style={{
+                                                padding: '0.2rem',
+                                                fontSize: '0.8rem',
+                                                borderRadius: '4px',
+                                                border: '1px solid var(--glass-border)',
+                                                background: 'var(--bg-card)',
+                                                color: 'white'
+                                            }}
+                                        >
+                                            <option value={50}>50</option>
+                                            <option value={100}>100</option>
+                                            <option value={200}>200</option>
+                                            <option value={500}>500</option>
+                                        </select>
+                                    </div>
+
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <button
+                                            onClick={() => handlePageChange(currentPage - 1)}
+                                            disabled={currentPage === 1}
+                                            className="btn-secondary"
+                                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', opacity: currentPage === 1 ? 0.5 : 1 }}
+                                        >
+                                            Anterior
+                                        </button>
+                                        <span style={{ margin: '0 0.5rem' }}>
+                                            Página <strong style={{ color: 'white' }}>{currentPage}</strong> de {totalPages}
+                                        </span>
+                                        <button
+                                            onClick={() => handlePageChange(currentPage + 1)}
+                                            disabled={currentPage === totalPages}
+                                            className="btn-secondary"
+                                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', opacity: currentPage === totalPages ? 0.5 : 1 }}
+                                        >
+                                            Siguiente
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                        <div>
-                            <label>Nombre</label>
-                            <input
-                                value={formData.NOMBRE}
-                                onChange={e => setFormData({ ...formData, NOMBRE: e.target.value })}
-                            />
-                        </div>
-                        <button type="submit" disabled={loading} className="btn-primary">
-                            {loading ? 'Guardando...' : 'Actualizar Cliente'}
-                        </button>
-                    </form>
-                ) : (
-                    <div style={{ textAlign: 'center', padding: '2rem', border: '2px dashed var(--glass-border)', borderRadius: 'var(--radius-md)' }}>
-                        <p style={{ marginBottom: '1rem' }}>Sube un archivo Excel (.xlsx) con las columnas:</p>
-                        <ul style={{ listStyle: 'none', marginBottom: '1.5rem', color: 'var(--text-muted)', textAlign: 'left', display: 'inline-block' }}>
-                            <li><code>NUMERO</code> (Requerido)</li>
-                            <li><code>CONTACTO 1</code> (Opcional)</li>
-                            <li><code>CONTACTO 2</code> (Opcional)</li>
-                            <li><code>NOMBRE</code> (Opcional)</li>
-                        </ul>
-                        <br />
-                        <input
-                            type="file"
-                            accept=".xlsx, .xls"
-                            onChange={handleFileUpload}
-                            disabled={loading}
-                            style={{ margin: '0 auto' }}
-                        />
-                    </div>
-                )}
+                    );
+                })()}
+
             </div>
+
+            {/* Edit/Create Modal */}
+            {modalOpen && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+                    display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000
+                }}>
+                    <div className="glass-panel" style={{ padding: '2rem', width: '100%', maxWidth: '500px', margin: '1rem' }}>
+                        <h3 style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem' }}>
+                            {formData.NUMERO && sales.find(s => s.NUMERO === formData.NUMERO) ? 'Editar Cliente' : 'Nuevo Registro'}
+                        </h3>
+                        <form onSubmit={handleSingleSubmit} style={{ display: 'grid', gap: '1rem' }}>
+                            <div>
+                                <label>Número *</label>
+                                <input
+                                    required
+                                    value={formData.NUMERO}
+                                    onChange={e => setFormData({ ...formData, NUMERO: e.target.value })}
+                                    placeholder="Ej: 3001234567"
+                                    style={{ width: '100%', padding: '0.75rem' }}
+                                />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <div>
+                                    <label>Contacto 1</label>
+                                    <input
+                                        value={formData.CONTACTO_1}
+                                        onChange={e => setFormData({ ...formData, CONTACTO_1: e.target.value })}
+                                        placeholder="Ej: 3xxxxxxxxx"
+                                        style={{ width: '100%', padding: '0.75rem' }}
+                                    />
+                                </div>
+                                <div>
+                                    <label>Contacto 2</label>
+                                    <input
+                                        value={formData.CONTACTO_2}
+                                        onChange={e => setFormData({ ...formData, CONTACTO_2: e.target.value })}
+                                        placeholder="Ej: 3xxxxxxxxx"
+                                        style={{ width: '100%', padding: '0.75rem' }}
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label>Nombre</label>
+                                <input
+                                    value={formData.NOMBRE}
+                                    onChange={e => setFormData({ ...formData, NOMBRE: e.target.value })}
+                                    style={{ width: '100%', padding: '0.75rem' }}
+                                />
+                            </div>
+                            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setModalOpen(false)}
+                                    className="btn-secondary"
+                                    style={{ background: 'transparent', border: '1px solid var(--glass-border)' }}
+                                >
+                                    Cancelar
+                                </button>
+                                <button type="submit" disabled={loading} className="btn-primary">
+                                    {loading ? 'Guardando...' : 'Guardar'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

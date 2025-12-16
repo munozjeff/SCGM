@@ -7,6 +7,97 @@ import { ref, set, get, child, update, onValue } from "firebase/database";
  * @param {Array} updates - Lista de objetos { NUMERO, REGISTRO_SIM, FECHA_INGRESO }
  * @returns {Promise<Object>} - Resumen { updated, skipped, errors }
  */
+
+const normalizeDate = (value) => {
+    if (!value) return undefined;
+
+    // 1. If it's already a JS Date
+    if (value instanceof Date) {
+        return value.toISOString().split('T')[0];
+    }
+
+    // 2. If it's an Excel Serial Number (e.g. 45000)
+    // Excel base date: Dec 30, 1899. (There is a leap year bug in 1900, but usually this works)
+    if (typeof value === 'number' && value > 20000) {
+        const date = new Date((value - 25569) * 86400 * 1000);
+        return date.toISOString().split('T')[0];
+    }
+
+    // 3. If it's a string
+    const str = String(value).trim();
+    if (!str) return undefined;
+
+    // Try to detect DD/MM/YYYY or D/M/YYYY (common in Colombia/LATAM)
+    // Regex matches: (1-2 digits) / (1-2 digits) / (4 digits)
+    const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (dmyMatch) {
+        const day = dmyMatch[1].padStart(2, '0');
+        const month = dmyMatch[2].padStart(2, '0');
+        const year = dmyMatch[3];
+        return `${year}-${month}-${day}`;
+    }
+
+    // Try YYYY-MM-DD or YYYY/MM/DD
+    const ymdMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if (ymdMatch) {
+        const year = ymdMatch[1];
+        const month = ymdMatch[2].padStart(2, '0');
+        const day = ymdMatch[3].padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    // Fallback: Try standard Date parse (May interpret 11/3 as Nov 3 for en-US locale)
+    // But since we handled D/M/Y explicitly above, this catches odd formats
+    const date = new Date(str);
+    if (!isNaN(date.getTime())) {
+        return date.toISOString().split('T')[0];
+    }
+
+    return str; // Return original if unknown format
+};
+
+const normalizeEstadoSim = (val) => {
+    if (!val) return undefined;
+    const str = String(val).trim().toUpperCase();
+    const map = {
+        "ACTIVA": "ACTIVA",
+        "INACTIVA": "INACTIVA",
+        "ENVIADA": "ENVIADA",
+        "NO SE ENCONTRO INFORMACIÓN DEL CLIENTE": "No se encontro información del cliente",
+        "NO SE ENCONTRO INFORMACION DEL CLIENTE": "No se encontro información del cliente"
+    };
+    if (map[str]) return map[str];
+    // Allow fuzzy match if strictly needed, or just return normalized case if close?
+    // User asked "debe listar las opciones disponibles", implying strictness.
+    // Let's check if the user wanted strict validation or just normalization.
+    // "Variables que aceptan solo valores ya definidos... debe listar las opciones...".
+    // For import, we should probably try to match or fallback to uppercase if valid?
+    return map[str] || str; // Return mapped or original (allows validation check later)
+};
+
+const normalizeTipoVenta = (val) => {
+    if (!val) return undefined;
+    const str = String(val).trim().toLowerCase();
+    const map = {
+        "portabilidad": "portabilidad",
+        "linea nueva": "linea nueva",
+        "línea nueva": "linea nueva", // Common typo
+        "ppt": "ppt"
+    };
+    return map[str] || str;
+};
+
+const normalizeNovedad = (val) => {
+    if (!val) return undefined;
+    const str = String(val).trim().toUpperCase();
+    const map = {
+        "RECHAZADO": "RECHAZADO",
+        "CE": "CE",
+        "EN ESPERA": "EN ESPERA"
+    };
+    return map[str] || str;
+};
+
 export const updateIncome = async (month, updates) => {
     const summary = { updated: 0, skipped: 0, errors: [] };
 
@@ -25,7 +116,7 @@ export const updateIncome = async (month, updates) => {
 
         const updateData = {};
         if (item.REGISTRO_SIM !== undefined) updateData.REGISTRO_SIM = item.REGISTRO_SIM;
-        if (item.FECHA_INGRESO) updateData.FECHA_INGRESO = item.FECHA_INGRESO;
+        if (item.FECHA_INGRESO) updateData.FECHA_INGRESO = normalizeDate(item.FECHA_INGRESO);
         if (item.ICCID) updateData.ICCID = item.ICCID;
 
         if (Object.keys(updateData).length === 0) {
@@ -81,22 +172,23 @@ export const addSales = async (month, sales) => {
                 NUMERO: String(sale.NUMERO),
                 REGISTRO_SIM: sale.REGISTRO_SIM === true, // Default to false if not strictly true
                 ICCID: sale.ICCID ? String(sale.ICCID) : "", // "ICID" mapped to ICCID
-                FECHA_INGRESO: sale.FECHA_INGRESO || "",
-                FECHA_ACTIVACION: sale.FECHA_ACTIVACION || "",
-                ESTADO_SIM: sale.ESTADO_SIM || "",
-                TIPO_VENTA: sale.TIPO_VENTA || "",
-                NOVEDAD_EN_GESTION: sale.NOVEDAD_EN_GESTION || "",
+                FECHA_INGRESO: normalizeDate(sale.FECHA_INGRESO) || "",
+                FECHA_ACTIVACION: normalizeDate(sale.FECHA_ACTIVACION) || "",
+                ESTADO_SIM: normalizeEstadoSim(sale.ESTADO_SIM) || "",
+                TIPO_VENTA: normalizeTipoVenta(sale.TIPO_VENTA) || "",
+                NOVEDAD_EN_GESTION: normalizeNovedad(sale.NOVEDAD_EN_GESTION) || "",
                 CONTACTO_1: sale.CONTACTO_1 || "",
                 CONTACTO_2: sale.CONTACTO_2 || "",
                 NOMBRE: sale.NOMBRE || "",
                 SALDO: sale.SALDO !== undefined && sale.SALDO !== "" ? Number(sale.SALDO) : "",
                 ABONO: sale.ABONO !== undefined && sale.ABONO !== "" ? Number(sale.ABONO) : "", // Maps to user's "ABONOS" requirement using existing DB key if compatible, usually singular
-                FECHA_CARTERA: sale.FECHA_CARTERA || "",
+                FECHA_CARTERA: normalizeDate(sale.FECHA_CARTERA) || "",
                 GUIA: sale.GUIA || "",
                 TRANSPORTADORA: sale.TRANSPORTADORA || "",
                 NOVEDAD: sale.NOVEDAD || "",
-                FECHA_HORA_REPORTE: sale.FECHA_HORA_REPORTE || "",
-                DESCRIPCION_NOVEDAD: sale.DESCRIPCION_NOVEDAD || ""
+                FECHA_HORA_REPORTE: normalizeDate(sale.FECHA_HORA_REPORTE) || "",
+                DESCRIPCION_NOVEDAD: sale.DESCRIPCION_NOVEDAD || "",
+                createdAt: new Date().toISOString()
             };
 
             // 3. Specific Conditional Validations
@@ -160,7 +252,11 @@ export const getSalesByMonth = async (month) => {
             return Object.keys(salesData).map(numero => ({
                 NUMERO: numero,
                 ...salesData[numero]
-            }));
+            })).sort((a, b) => {
+                const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+                const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+                return dateB - dateA; // Descending
+            });
         }
         return [];
     } catch (error) {
@@ -200,7 +296,11 @@ export const listenToSalesByMonth = (month, callback) => {
             const salesArray = Object.keys(salesData).map(numero => ({
                 NUMERO: numero,
                 ...salesData[numero]
-            }));
+            })).sort((a, b) => {
+                const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+                const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+                return dateB - dateA; // Descending
+            });
             callback(salesArray);
         } else {
             callback([]);
@@ -299,7 +399,7 @@ export const updateActivationDate = async (month, updates) => {
         }
 
         const updateData = {};
-        if (item.FECHA_ACTIVACION) updateData.FECHA_ACTIVACION = item.FECHA_ACTIVACION;
+        if (item.FECHA_ACTIVACION) updateData.FECHA_ACTIVACION = normalizeDate(item.FECHA_ACTIVACION);
 
         if (Object.keys(updateData).length === 0) {
             summary.skipped++;
@@ -345,12 +445,15 @@ export const updateSimStatus = async (month, updates) => {
 
         const updateData = {};
         if (item.ESTADO_SIM !== undefined) {
+            const normalized = normalizeEstadoSim(item.ESTADO_SIM);
             const validEstadoSim = ["ACTIVA", "INACTIVA", "ENVIADA", "No se encontro información del cliente", ""];
-            if (!validEstadoSim.includes(item.ESTADO_SIM)) {
+            // Check normalized or original? Normalized should map to valid.
+            if (!validEstadoSim.includes(normalized)) {
+                // Try generous check? or strict? User asked for strict options.
                 summary.errors.push(`Invalid ESTADO_SIM for ${numero}: ${item.ESTADO_SIM}`);
                 continue;
             }
-            updateData.ESTADO_SIM = item.ESTADO_SIM;
+            updateData.ESTADO_SIM = normalized;
         }
         if (item.ICCID) updateData.ICCID = item.ICCID;
 
@@ -405,12 +508,13 @@ export const updateSalesType = async (month, updates) => {
 
         const updateData = {};
         if (item.TIPO_VENTA !== undefined) {
+            const normalized = normalizeTipoVenta(item.TIPO_VENTA);
             const validTipoVenta = ["portabilidad", "linea nueva", "ppt", ""];
-            if (!validTipoVenta.includes(item.TIPO_VENTA)) {
+            if (!validTipoVenta.includes(normalized)) {
                 summary.errors.push(`Invalid TIPO_VENTA for ${numero}: ${item.TIPO_VENTA}`);
                 continue;
             }
-            updateData.TIPO_VENTA = item.TIPO_VENTA;
+            updateData.TIPO_VENTA = normalized;
         }
 
         if (Object.keys(updateData).length === 0) {
@@ -452,12 +556,13 @@ export const updateManagementStatus = async (month, updates) => {
         }
         const updateData = {};
         if (item.NOVEDAD_EN_GESTION !== undefined) {
+            const normalized = normalizeNovedad(item.NOVEDAD_EN_GESTION);
             const validNovedadGestion = ["RECHAZADO", "CE", "EN ESPERA", ""];
-            if (!validNovedadGestion.includes(item.NOVEDAD_EN_GESTION)) {
+            if (!validNovedadGestion.includes(normalized)) {
                 summary.errors.push(`Invalid NOVEDAD_EN_GESTION for ${numero}: ${item.NOVEDAD_EN_GESTION}`);
                 continue;
             }
-            updateData.NOVEDAD_EN_GESTION = item.NOVEDAD_EN_GESTION;
+            updateData.NOVEDAD_EN_GESTION = normalized;
         }
 
         if (Object.keys(updateData).length === 0) {
@@ -497,7 +602,7 @@ export const updatePortfolio = async (month, updates) => {
         const updateData = {};
         if (item.SALDO) updateData.SALDO = item.SALDO;
         if (item.ABONO) updateData.ABONO = item.ABONO;
-        if (item.FECHA_CARTERA) updateData.FECHA_CARTERA = item.FECHA_CARTERA;
+        if (item.FECHA_CARTERA) updateData.FECHA_CARTERA = normalizeDate(item.FECHA_CARTERA);
 
         if (Object.keys(updateData).length === 0) {
             summary.skipped++;
@@ -538,7 +643,7 @@ export const updateGuides = async (month, updates) => {
         if (item.ESTADO_GUIA) updateData.ESTADO_GUIA = item.ESTADO_GUIA;
         if (item.TRANSPORTADORA) updateData.TRANSPORTADORA = item.TRANSPORTADORA;
         if (item.NOVEDAD) updateData.NOVEDAD = item.NOVEDAD;
-        if (item.FECHA_HORA_REPORTE) updateData.FECHA_HORA_REPORTE = item.FECHA_HORA_REPORTE;
+        if (item.FECHA_HORA_REPORTE) updateData.FECHA_HORA_REPORTE = normalizeDate(item.FECHA_HORA_REPORTE);
         if (item.DESCRIPCION_NOVEDAD) updateData.DESCRIPCION_NOVEDAD = item.DESCRIPCION_NOVEDAD;
 
         if (Object.keys(updateData).length === 0) {
@@ -558,5 +663,122 @@ export const updateGuides = async (month, updates) => {
             summary.errors.push(`Error ${numero}: ${error.message}`);
         }
     }
+    return summary;
+};
+
+/**
+ * Importa o actualiza una lista masiva de ventas desde un Excel.
+ * - Crea registros nuevos si no existen.
+ * - Actualiza registros existentes con la información proporcionada.
+ * @param {string} month - Mes de operación
+ * @param {Array} salesData - Datos crudos del Excel
+ * @returns {Promise<Object>} - Resumen del proceso
+ */
+export const importSales = async (month, salesData) => {
+    const summary = { added: 0, updated: 0, skipped: 0, errors: [] };
+
+    if (!month || !salesData || salesData.length === 0) {
+        throw new Error("Month and data are required.");
+    }
+
+    const salesRef = ref(db, `months/${month}/sales`);
+
+    const validateNumero = (num) => /^[3]\d{9}$/.test(String(num));
+
+    for (const rawSale of salesData) {
+        try {
+            // 1. Validar NUMERO Obligatorio
+            if (!rawSale.NUMERO) {
+                summary.errors.push(`Fila sin NÚMERO: ${JSON.stringify(rawSale)}`);
+                continue;
+            }
+
+            const numero = String(rawSale.NUMERO);
+            if (!validateNumero(numero)) {
+                summary.errors.push(`Formato de NÚMERO inválido: ${numero}`);
+                continue;
+            }
+
+            // 2. Preparar objeto de datos limpio
+            // Mapeamos lo que venga del excel a nuestro esquema.
+            // Asumimos que los keys del objeto salesData ya vienen "limpios" (mapeados desde el excel en el frontend)
+            // O bien, normalizamos aquí. En este caso, asumiremos que el Frontend envía keys correctos (NUMERO, NOMBRE...)
+
+            const saleToProcess = {
+                NUMERO: numero,
+                // Boolean conversion helpers
+                REGISTRO_SIM: rawSale.REGISTRO_SIM === 'SÍ' || rawSale.REGISTRO_SIM === true || rawSale.REGISTRO_SIM === 'TRUE',
+                ICCID: rawSale.ICCID ? String(rawSale.ICCID) : undefined,
+                FECHA_INGRESO: normalizeDate(rawSale.FECHA_INGRESO) || undefined,
+                FECHA_ACTIVACION: normalizeDate(rawSale.FECHA_ACTIVACION) || undefined,
+                ESTADO_SIM: normalizeEstadoSim(rawSale.ESTADO_SIM) || undefined,
+                TIPO_VENTA: normalizeTipoVenta(rawSale.TIPO_VENTA) || undefined,
+                NOVEDAD_EN_GESTION: normalizeNovedad(rawSale.NOVEDAD_EN_GESTION) || undefined,
+                CONTACTO_1: rawSale.CONTACTO_1 ? String(rawSale.CONTACTO_1) : undefined,
+                CONTACTO_2: rawSale.CONTACTO_2 ? String(rawSale.CONTACTO_2) : undefined,
+                NOMBRE: rawSale.NOMBRE || undefined,
+                SALDO: rawSale.SALDO !== undefined ? Number(rawSale.SALDO) : undefined,
+                ABONO: rawSale.ABONO !== undefined ? Number(rawSale.ABONO) : undefined,
+                FECHA_CARTERA: normalizeDate(rawSale.FECHA_CARTERA) || undefined,
+                GUIA: rawSale.GUIA || undefined,
+                TRANSPORTADORA: rawSale.TRANSPORTADORA || undefined,
+                ESTADO_GUIA: rawSale.ESTADO_GUIA || undefined,
+                NOVEDAD: rawSale.NOVEDAD || undefined,
+                FECHA_HORA_REPORTE: normalizeDate(rawSale.FECHA_HORA_REPORTE) || undefined,
+                DESCRIPCION_NOVEDAD: rawSale.DESCRIPCION_NOVEDAD || undefined
+            };
+
+
+            // 3. Verificar existencia
+            const snapshot = await get(child(salesRef, numero));
+
+            if (snapshot.exists()) {
+                // UPDATE: Merge exististing data with new non-undefined data
+                // Remove undefined keys to avoid deleting existing data if we used 'set', 
+                // but for 'update' undefineds are ignored locally but good to be clean.
+                // Actually 'update' with undefined might throw or remove? Firebase js sdk ignores undefined usually.
+                // Let's filter undefineds just in case.
+                const updateData = {};
+                Object.keys(saleToProcess).forEach(key => {
+                    if (saleToProcess[key] !== undefined && key !== 'NUMERO') {
+                        updateData[key] = saleToProcess[key];
+                    }
+                });
+
+                if (Object.keys(updateData).length > 0) {
+                    await update(child(salesRef, numero), updateData);
+                    summary.updated++;
+                } else {
+                    summary.skipped++; // No actionable data to update
+                }
+
+            } else {
+                // CREATE: Need defaults for mandatory fields if not present?
+                // Our schema is quite loose, basically everything is optional except NUMERO.
+                // We just save what we have.
+                const newSale = {
+                    ...saleToProcess,
+                    REGISTRO_SIM: saleToProcess.REGISTRO_SIM || false, // Default only strictly required logic
+                    createdAt: new Date().toISOString()
+                };
+
+                // Clean undefineds for SET as well
+                const cleanNewSale = {};
+                Object.keys(newSale).forEach(key => {
+                    if (newSale[key] !== undefined) {
+                        cleanNewSale[key] = newSale[key];
+                    }
+                });
+
+                await set(child(salesRef, numero), cleanNewSale);
+                summary.added++;
+            }
+
+        } catch (error) {
+            console.error(`Error processing row ${rawSale.NUMERO}:`, error);
+            summary.errors.push(`Error en ${rawSale.NUMERO}: ${error.message}`);
+        }
+    }
+
     return summary;
 };
