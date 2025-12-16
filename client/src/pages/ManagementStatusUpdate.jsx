@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { updateManagementStatus, getAllMonths, listenToSalesByMonth } from '../services/SalesService';
 import * as XLSX from 'xlsx';
+import LoadingOverlay from '../components/LoadingOverlay';
 
 export default function ManagementStatusUpdate() {
     const [month, setMonth] = useState('');
@@ -133,6 +134,7 @@ export default function ManagementStatusUpdate() {
 
     return (
         <div className="container" style={{ padding: '1rem', maxWidth: '100%', height: 'calc(100vh - 80px)', display: 'flex', flexDirection: 'column' }}>
+            {loading && <LoadingOverlay />}
             <div className="glass-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <div style={{ padding: '1rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                     <h2 style={{ fontSize: '1.25rem' }}>Actualizar Novedad Gestión</h2>
@@ -269,6 +271,7 @@ export default function ManagementStatusUpdate() {
                                     <option value="RECHAZADO">RECHAZADO</option>
                                     <option value="CE">CE</option>
                                     <option value="EN ESPERA">EN ESPERA</option>
+                                    <option value="ENVIO PENDIENTE">ENVIO PENDIENTE</option>
                                 </select>
                             </div>
                             <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>

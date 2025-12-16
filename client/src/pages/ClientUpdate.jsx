@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { updateClientInfo, getAllMonths, listenToSalesByMonth } from '../services/SalesService';
 import * as XLSX from 'xlsx';
+import LoadingOverlay from '../components/LoadingOverlay';
 
 export default function ClientUpdate() {
     const [month, setMonth] = useState('');
@@ -163,6 +164,7 @@ export default function ClientUpdate() {
 
     return (
         <div className="container">
+            {loading && <LoadingOverlay />}
             <div className="glass-panel" style={{ padding: '2rem' }}>
                 <h2 style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
                     <span>Actualizar Info Cliente</span>

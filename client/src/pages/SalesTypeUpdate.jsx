@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { updateSalesType, getAllMonths, listenToSalesByMonth } from '../services/SalesService';
 import * as XLSX from 'xlsx';
+import LoadingOverlay from '../components/LoadingOverlay';
 
 export default function SalesTypeUpdate() {
     const [month, setMonth] = useState('');
@@ -133,6 +134,7 @@ export default function SalesTypeUpdate() {
 
     return (
         <div className="container" style={{ padding: '1rem', maxWidth: '100%', height: 'calc(100vh - 80px)', display: 'flex', flexDirection: 'column' }}>
+            {loading && <LoadingOverlay />}
             <div className="glass-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <div style={{ padding: '1rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                     <h2 style={{ fontSize: '1.25rem' }}>Actualizar Tipo Venta</h2>

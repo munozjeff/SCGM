@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { addSales, getAllMonths } from '../services/SalesService';
 import * as XLSX from 'xlsx';
+import LoadingOverlay from '../components/LoadingOverlay';
 
 export default function SalesUpdate() {
     const [month, setMonth] = useState("");
@@ -121,6 +122,7 @@ export default function SalesUpdate() {
 
     return (
         <div className="container">
+            {loading && <LoadingOverlay />}
             <div className="glass-panel" style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
                 <h2 style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem' }}>
                     Registrar Nuevas Ventas

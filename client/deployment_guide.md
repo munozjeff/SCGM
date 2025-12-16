@@ -40,4 +40,4 @@ Sube los archivos a Firebase:
 firebase deploy
 ```
 
-¡Listo! La terminal te mostrará la URL de tu aplicación (ej. `https://tu-proyecto.web.app`).
+¡Listo! La terminal te mostrará la URL de tu aplicación (ej. `https://scgm-444ed.web.app`).

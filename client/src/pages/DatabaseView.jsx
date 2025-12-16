@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getAllMonths, listenToSalesByMonth, importSales } from '../services/SalesService';
 import * as XLSX from 'xlsx';
+import LoadingOverlay from '../components/LoadingOverlay';
 
 export default function DatabaseView() {
     const [months, setMonths] = useState([]);
@@ -218,6 +219,7 @@ export default function DatabaseView() {
 
     return (
         <div className="container" style={{ maxWidth: '100%', padding: '1rem' }}>
+            {loading && <LoadingOverlay />}
             <div className="glass-panel" style={{ padding: '1.5rem' }}>
                 <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem', fontSize: '1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>Base de Datos</span>

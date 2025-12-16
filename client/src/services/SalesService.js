@@ -63,6 +63,7 @@ const normalizeEstadoSim = (val) => {
         "ACTIVA": "ACTIVA",
         "INACTIVA": "INACTIVA",
         "ENVIADA": "ENVIADA",
+        "OTRO CANAL": "OTRO CANAL",
         "NO SE ENCONTRO INFORMACIÓN DEL CLIENTE": "No se encontro información del cliente",
         "NO SE ENCONTRO INFORMACION DEL CLIENTE": "No se encontro información del cliente"
     };
@@ -93,7 +94,9 @@ const normalizeNovedad = (val) => {
     const map = {
         "RECHAZADO": "RECHAZADO",
         "CE": "CE",
-        "EN ESPERA": "EN ESPERA"
+        "EN ESPERA": "EN ESPERA",
+        "ENVIO PENDIENTE": "ENVIO PENDIENTE",
+        "ENVÍO PENDIENTE": "ENVIO PENDIENTE"
     };
     return map[str] || str;
 };
@@ -194,7 +197,7 @@ export const addSales = async (month, sales) => {
             // 3. Specific Conditional Validations
 
             // ESTADO_SIM Valid Options
-            const validEstadoSim = ["ACTIVA", "INACTIVA", "ENVIADA", "No se encontro información del cliente", ""];
+            const validEstadoSim = ["ACTIVA", "INACTIVA", "ENVIADA", "OTRO CANAL", "No se encontro información del cliente", ""];
             if (!validEstadoSim.includes(newSale.ESTADO_SIM)) {
                 throw new Error(`Invalid ESTADO_SIM: ${newSale.ESTADO_SIM}`);
             }
@@ -213,7 +216,7 @@ export const addSales = async (month, sales) => {
             }
 
             // NOVEDAD_EN_GESTION Valid Options
-            const validNovedadGestion = ["RECHAZADO", "CE", "EN ESPERA", ""];
+            const validNovedadGestion = ["RECHAZADO", "CE", "EN ESPERA", "ENVIO PENDIENTE", ""];
             if (!validNovedadGestion.includes(newSale.NOVEDAD_EN_GESTION)) {
                 throw new Error(`Invalid NOVEDAD_EN_GESTION: ${newSale.NOVEDAD_EN_GESTION}`);
             }
@@ -446,7 +449,7 @@ export const updateSimStatus = async (month, updates) => {
         const updateData = {};
         if (item.ESTADO_SIM !== undefined) {
             const normalized = normalizeEstadoSim(item.ESTADO_SIM);
-            const validEstadoSim = ["ACTIVA", "INACTIVA", "ENVIADA", "No se encontro información del cliente", ""];
+            const validEstadoSim = ["ACTIVA", "INACTIVA", "ENVIADA", "OTRO CANAL", "No se encontro información del cliente", ""];
             // Check normalized or original? Normalized should map to valid.
             if (!validEstadoSim.includes(normalized)) {
                 // Try generous check? or strict? User asked for strict options.
@@ -557,7 +560,7 @@ export const updateManagementStatus = async (month, updates) => {
         const updateData = {};
         if (item.NOVEDAD_EN_GESTION !== undefined) {
             const normalized = normalizeNovedad(item.NOVEDAD_EN_GESTION);
-            const validNovedadGestion = ["RECHAZADO", "CE", "EN ESPERA", ""];
+            const validNovedadGestion = ["RECHAZADO", "CE", "EN ESPERA", "ENVIO PENDIENTE", ""];
             if (!validNovedadGestion.includes(normalized)) {
                 summary.errors.push(`Invalid NOVEDAD_EN_GESTION for ${numero}: ${item.NOVEDAD_EN_GESTION}`);
                 continue;

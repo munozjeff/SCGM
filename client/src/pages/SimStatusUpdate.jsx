@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { updateSimStatus, getAllMonths, listenToSalesByMonth } from '../services/SalesService';
 import * as XLSX from 'xlsx';
+import LoadingOverlay from '../components/LoadingOverlay';
 
 export default function SimStatusUpdate() {
     const [month, setMonth] = useState('');
@@ -133,6 +134,7 @@ export default function SimStatusUpdate() {
 
     return (
         <div className="container" style={{ padding: '1rem', maxWidth: '100%', height: 'calc(100vh - 80px)', display: 'flex', flexDirection: 'column' }}>
+            {loading && <LoadingOverlay />}
             <div className="glass-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <div style={{ padding: '1rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                     <h2 style={{ fontSize: '1.25rem' }}>Actualizar Estado SIM</h2>
@@ -270,6 +272,7 @@ export default function SimStatusUpdate() {
                                     <option value="ACTIVA">ACTIVA</option>
                                     <option value="INACTIVA">INACTIVA</option>
                                     <option value="ENVIADA">ENVIADA</option>
+                                    <option value="OTRO CANAL">OTRO CANAL</option>
                                     <option value="No se encontro información del cliente">No se encontro información del cliente</option>
                                 </select>
                             </div>
