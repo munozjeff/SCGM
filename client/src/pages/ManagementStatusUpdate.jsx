@@ -342,6 +342,7 @@ export default function ManagementStatusUpdate() {
                                     <option value="CE">CE</option>
                                     <option value="EN ESPERA">EN ESPERA</option>
                                     <option value="ENVIO PENDIENTE">ENVIO PENDIENTE</option>
+                                    <option value="SIN CONTACTO">SIN CONTACTO</option>
                                 </select>
                             </div>
                             <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>

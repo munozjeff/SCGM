@@ -142,6 +142,15 @@ export default function Dashboard() {
         });
     };
 
+    // 6. Envíos Pendientes (User Request: Novedad = 'ENVIO PENDIENTE' AND ESTADO_SIM != 'ENVIADA')
+    const filterPendingShipments = (salesData) => {
+        return salesData.filter(sale => {
+            const novedad = sale.NOVEDAD_EN_GESTION ? sale.NOVEDAD_EN_GESTION.trim().toUpperCase() : '';
+            const estado = sale.ESTADO_SIM ? sale.ESTADO_SIM.trim().toUpperCase() : '';
+            return (novedad === 'ENVIO PENDIENTE' || novedad === 'ENVÍO PENDIENTE') && estado !== 'ENVIADA';
+        });
+    };
+
     // Distribución Breakdown
     const calculateSimStatusDistribution = (salesData) => {
         const total = salesData.length;
@@ -188,7 +197,9 @@ export default function Dashboard() {
             missingIncome: filterMissingIncome(salesData),
             activationsToday: filterActivationsToday(salesData),
             activationsTomorrow: filterActivationsTomorrow(salesData),
+            missingManagement: filterMissingManagement(salesData),
             portfolio: filterPortfolio(salesData),
+            pendingShipments: filterPendingShipments(salesData),
             simStatusDistribution: calculateSimStatusDistribution(salesData),
             totalSales: salesData.length
         };
@@ -411,6 +422,16 @@ export default function Dashboard() {
                         data={metrics.portfolio}
                         subtitle="Registros con Saldo > 0"
                         color="danger"
+                        onExport={handleExport}
+                    />
+
+                    {/* 6. Envíos Pendientes */}
+                    <MetricCard
+                        icon="🚚"
+                        title="Envíos Pendientes"
+                        data={metrics.pendingShipments}
+                        subtitle="Novedad 'Envío Pendiente' y No 'Enviada'"
+                        color="warning"
                         onExport={handleExport}
                     />
 

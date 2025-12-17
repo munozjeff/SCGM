@@ -96,7 +96,8 @@ const normalizeNovedad = (val) => {
         "CE": "CE",
         "EN ESPERA": "EN ESPERA",
         "ENVIO PENDIENTE": "ENVIO PENDIENTE",
-        "ENVÍO PENDIENTE": "ENVIO PENDIENTE"
+        "ENVÍO PENDIENTE": "ENVIO PENDIENTE",
+        "SIN CONTACTO": "SIN CONTACTO"
     };
     return map[str] || str;
 };
