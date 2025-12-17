@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import LoadingOverlay from '../components/LoadingOverlay';
 import { downloadTemplate } from '../utils/ExcelUtils';
+import MultiSelectFilter, { EMPTY_VALUE } from '../components/MultiSelectFilter';
 
 export default function GuidesUpdate() {
     const { currentUser } = useAuth();
@@ -23,8 +24,15 @@ export default function GuidesUpdate() {
     const columns = ['NUMERO', 'GUIA', 'ESTADO_GUIA', 'TRANSPORTADORA', 'NOVEDAD'];
     const selectFields = ['ESTADO_GUIA', 'TRANSPORTADORA', 'NOVEDAD'];
 
-    const [filters, setFilters] = useState({ NUMERO: '', GUIA: '', ESTADO_GUIA: '', TRANSPORTADORA: '', NOVEDAD: '' });
+    const [filters, setFilters] = useState({
+        NUMERO: '',
+        GUIA: '',
+        ESTADO_GUIA: [],
+        TRANSPORTADORA: [],
+        NOVEDAD: []
+    });
     const [uniqueValues, setUniqueValues] = useState({});
+    const [hasEmptyValues, setHasEmptyValues] = useState({});
 
     // Filter Visibility State
     const [showFilters, setShowFilters] = useState(false);
@@ -63,24 +71,28 @@ export default function GuidesUpdate() {
     useEffect(() => {
         if (sales.length > 0) {
             const unique = {};
+            const hasEmpty = {};
             selectFields.forEach(field => {
-                const values = [...new Set(sales.map(s => s[field]).filter(v => v !== null && v !== undefined && v !== ''))];
+                const allValues = sales.map(s => s[field]);
+                hasEmpty[field] = allValues.some(v => v == null || v === '');
+                const values = [...new Set(allValues.filter(v => v !== null && v !== undefined && v !== ''))];
                 unique[field] = values.sort();
             });
             setUniqueValues(unique);
+            setHasEmptyValues(hasEmpty);
         }
     }, [sales]);
 
     useEffect(() => {
         let filtered = sales;
         columns.forEach(col => {
-            if (filters[col]) {
-                const filterVal = filters[col].toLowerCase();
-                filtered = filtered.filter(item => {
-                    const val = item[col] ? String(item[col]).toLowerCase() : '';
-                    return val.includes(filterVal);
-                });
-            }
+            const filterVal = filters[col];
+            if (!filterVal || (Array.isArray(filterVal) && filterVal.length === 0)) return;
+            filtered = filtered.filter(item => {
+                const val = item[col] ? String(item[col]).toLowerCase() : '';
+                if (Array.isArray(filterVal)) return filterVal.includes(item[col]);
+                return val.includes(filterVal.toLowerCase());
+            });
         });
         setFilteredSales(filtered);
     }, [filters, sales]);
@@ -90,7 +102,12 @@ export default function GuidesUpdate() {
         setCurrentPage(1);
     };
 
-    const clearFilters = () => setFilters({ NUMERO: '', GUIA: '', ESTADO_GUIA: '', TRANSPORTADORA: '', NOVEDAD: '' });
+    const handleMultiSelectChange = (field, values) => {
+        setFilters(prev => ({ ...prev, [field]: values }));
+        setCurrentPage(1);
+    };
+
+    const clearFilters = () => setFilters({ NUMERO: '', GUIA: '', ESTADO_GUIA: [], TRANSPORTADORA: [], NOVEDAD: [] });
 
     const handleEditClick = (record) => {
         setEditForm({ ...record });
@@ -198,14 +215,13 @@ export default function GuidesUpdate() {
                                     <th key={col} style={{ padding: '0.5rem', textAlign: 'left', minWidth: '120px' }}>
                                         <div style={{ marginBottom: showFilters ? '0.25rem' : '0' }}>{col.replace('_', ' ')}</div>
                                         {showFilters && (selectFields.includes(col) ? (
-                                            <select
-                                                value={filters[col]}
-                                                onChange={(e) => handleFilterChange(col, e.target.value)}
-                                                style={{ width: '100%', padding: '0.2rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', borderRadius: '4px' }}
-                                            >
-                                                <option value="">Todos</option>
-                                                {(uniqueValues[col] || []).map(val => <option key={val} value={val}>{val}</option>)}
-                                            </select>
+                                            <MultiSelectFilter
+                                                label={col.replace('_', ' ')}
+                                                values={uniqueValues[col] || []}
+                                                selectedValues={filters[col] || []}
+                                                onChange={(values) => handleMultiSelectChange(col, values)}
+                                                hasEmptyValues={hasEmptyValues[col] || false}
+                                            />
                                         ) : (
                                             <input value={filters[col]} onChange={(e) => handleFilterChange(col, e.target.value)} placeholder="..." style={{ width: '100%', padding: '0.2rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', borderRadius: '4px' }} />
                                         ))}

@@ -3,6 +3,7 @@ import { getAllMonths, listenToSalesByMonth, importSales, deleteSales } from '..
 import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import LoadingOverlay from '../components/LoadingOverlay';
+import MultiSelectFilter, { EMPTY_VALUE } from '../components/MultiSelectFilter';
 
 export default function DatabaseView() {
     const { currentUser, userRole } = useAuth();
@@ -34,13 +35,17 @@ export default function DatabaseView() {
         'TIPO_VENTA', 'TRANSPORTADORA', 'NOVEDAD_EN_GESTION'
     ];
 
-    // Filtros dinámicos
+    // Filtros dinámicos - arrays para multi-select, strings para text inputs
     const [filters, setFilters] = useState(
-        columns.reduce((acc, col) => ({ ...acc, [col]: '' }), {})
+        columns.reduce((acc, col) => ({
+            ...acc,
+            [col]: selectFields.includes(col) ? [] : ''
+        }), {})
     );
 
     // Opciones únicas para selectores
     const [uniqueValues, setUniqueValues] = useState({});
+    const [hasEmptyValues, setHasEmptyValues] = useState({});
 
     // Filter Visibility State
     const [showFilters, setShowFilters] = useState(false);
@@ -57,8 +62,14 @@ export default function DatabaseView() {
     useEffect(() => {
         if (sales.length > 0) {
             const unique = {};
+            const hasEmpty = {};
+
             selectFields.forEach(field => {
-                let values = [...new Set(sales.map(sale => sale[field]).filter(v => v != null))];
+                const allValues = sales.map(sale => sale[field]);
+                const hasEmptyValues = allValues.some(v => v == null || v === '');
+                hasEmpty[field] = hasEmptyValues;
+
+                let values = [...new Set(allValues.filter(v => v != null && v !== ''))];
 
                 // Convert boolean values to SÍ/NO for REGISTRO_SIM
                 if (field === 'REGISTRO_SIM') {
@@ -68,6 +79,7 @@ export default function DatabaseView() {
                 unique[field] = values.sort();
             });
             setUniqueValues(unique);
+            setHasEmptyValues(hasEmpty);
         }
     }, [sales]);
 
@@ -109,18 +121,36 @@ export default function DatabaseView() {
         let filtered = [...sales];
 
         columns.forEach(col => {
-            if (filters[col]) {
-                filtered = filtered.filter(sale => {
-                    let value = sale[col];
+            const filterValue = filters[col];
 
-                    // Convert REGISTRO_SIM boolean to SÍ/NO for comparison
-                    if (col === 'REGISTRO_SIM' && typeof value === 'boolean') {
-                        value = value ? 'SÍ' : 'NO';
-                    }
-
-                    return value?.toString().toLowerCase().includes(filters[col].toLowerCase());
-                });
+            // Skip empty filters
+            if (!filterValue || (Array.isArray(filterValue) && filterValue.length === 0)) {
+                return;
             }
+
+            filtered = filtered.filter(sale => {
+                let value = sale[col];
+
+                // Convert REGISTRO_SIM boolean to SÍ/NO for comparison
+                if (col === 'REGISTRO_SIM' && typeof value === 'boolean') {
+                    value = value ? 'SÍ' : 'NO';
+                }
+
+                // Multi-select filter (array)
+                if (Array.isArray(filterValue)) {
+                    // Check if filtering for empty values
+                    if (filterValue.includes(EMPTY_VALUE)) {
+                        const checkEmpty = value == null || value === '';
+                        const otherValues = filterValue.filter(v => v !== EMPTY_VALUE);
+                        const checkOthers = otherValues.length > 0 ? otherValues.includes(value) : false;
+                        return checkEmpty || checkOthers;
+                    }
+                    return filterValue.includes(value);
+                }
+
+                // Text filter (string)
+                return value?.toString().toLowerCase().includes(filterValue.toLowerCase());
+            });
         });
 
         setFilteredSales(filtered);
@@ -131,8 +161,16 @@ export default function DatabaseView() {
         setCurrentPage(1); // Reset a primera pagina al filtrar
     };
 
+    const handleMultiSelectChange = (field, selectedValues) => {
+        setFilters({ ...filters, [field]: selectedValues });
+        setCurrentPage(1);
+    };
+
     const clearFilters = () => {
-        setFilters(columns.reduce((acc, col) => ({ ...acc, [col]: '' }), {}));
+        setFilters(columns.reduce((acc, col) => ({
+            ...acc,
+            [col]: selectFields.includes(col) ? [] : ''
+        }), {}));
     };
 
     const handleExportExcel = () => {
@@ -368,15 +406,24 @@ export default function DatabaseView() {
                 {/* Filtros Colapsables */}
                 {sales.length > 0 && (
                     <>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                            <h2 style={{ margin: 0, fontSize: '1.2rem' }}>Base de Datos</h2>
                             <button
                                 onClick={() => setShowFilters(!showFilters)}
                                 style={{
+                                    padding: '0.5rem 1rem',
+                                    background: showFilters
+                                        ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2))'
+                                        : 'rgba(255,255,255,0.05)',
+                                    border: showFilters
+                                        ? '1px solid rgba(99, 102, 241, 0.5)'
+                                        : '1px solid rgba(255,255,255,0.1)',
+                                    color: 'white',
+                                    borderRadius: 'var(--radius-md)',
+                                    cursor: 'pointer',
                                     fontSize: '0.8rem',
-                                    color: showFilters ? '#10b981' : '#60a5fa',
-                                    background: 'transparent',
-                                    border: 'none',
-                                    cursor: 'pointer'
+                                    fontWeight: '500',
+                                    transition: 'all 0.2s ease'
                                 }}
                             >
                                 {showFilters ? '🔍 Ocultar Filtros' : '📊 Mostrar Filtros'}
@@ -401,23 +448,21 @@ export default function DatabaseView() {
                                         Limpiar
                                     </button>
                                 </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.75rem', maxHeight: '250px', overflowY: 'auto', padding: '0.5rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.75rem', padding: '0.5rem' }}>
                                     {columns.map(col => (
                                         <div key={col}>
                                             <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                                                 {col.replace(/_/g, ' ')}
                                             </label>
                                             {selectFields.includes(col) ? (
-                                                <select
-                                                    value={filters[col]}
-                                                    onChange={(e) => handleFilterChange(col, e.target.value)}
-                                                    style={{ fontSize: '0.7rem', padding: '0.4rem', width: '100%' }}
-                                                >
-                                                    <option value="">Todos</option>
-                                                    {(uniqueValues[col] || []).map(value => (
-                                                        <option key={value} value={value}>{value}</option>
-                                                    ))}
-                                                </select>
+                                                <MultiSelectFilter
+                                                    label={col.replace(/_/g, ' ')}
+                                                    values={uniqueValues[col] || []}
+                                                    selectedValues={filters[col] || []}
+                                                    onChange={(values) => handleMultiSelectChange(col, values)}
+                                                    hasEmptyValues={hasEmptyValues[col] || false}
+                                                    forcePosition="top"
+                                                />
                                             ) : (
                                                 <input
                                                     type="text"
@@ -471,7 +516,7 @@ export default function DatabaseView() {
                                             fontSize: '0.6rem',
                                             tableLayout: 'fixed'
                                         }}>
-                                            <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-panel)', zIndex: 10 }}>
+                                            <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-panel)', zIndex: 5 }}>
                                                 <tr style={{ borderBottom: '2px solid var(--glass-border)' }}>
                                                     {columns.map(col => (
                                                         <th key={col} style={{

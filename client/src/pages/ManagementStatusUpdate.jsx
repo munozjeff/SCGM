@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import LoadingOverlay from '../components/LoadingOverlay';
 import { downloadTemplate } from '../utils/ExcelUtils';
+import MultiSelectFilter, { EMPTY_VALUE } from '../components/MultiSelectFilter';
 
 export default function ManagementStatusUpdate() {
     //const { currentUser } = useAuth();
@@ -23,8 +24,12 @@ export default function ManagementStatusUpdate() {
     const columns = ['NUMERO', 'NOVEDAD_EN_GESTION'];
     const selectFields = ['NOVEDAD_EN_GESTION'];
 
-    const [filters, setFilters] = useState({ NUMERO: '', NOVEDAD_EN_GESTION: '' });
+    const [filters, setFilters] = useState({
+        NUMERO: '',
+        NOVEDAD_EN_GESTION: []  // Array for multi-select
+    });
     const [uniqueValues, setUniqueValues] = useState({});
+    const [hasEmptyValues, setHasEmptyValues] = useState({});
 
     // Date Range Filter State
     const [dateFilterType, setDateFilterType] = useState('all'); // 'all', 'before', 'after'
@@ -82,11 +87,15 @@ export default function ManagementStatusUpdate() {
     useEffect(() => {
         if (sales.length > 0) {
             const unique = {};
+            const hasEmpty = {};
             selectFields.forEach(field => {
-                const values = [...new Set(sales.map(s => s[field]).filter(v => v !== null && v !== undefined && v !== ''))];
+                const allValues = sales.map(s => s[field]);
+                hasEmpty[field] = allValues.some(v => v == null || v === '');
+                const values = [...new Set(allValues.filter(v => v !== null && v !== undefined && v !== ''))];
                 unique[field] = values.sort();
             });
             setUniqueValues(unique);
+            setHasEmptyValues(hasEmpty);
         }
     }, [sales]);
 
@@ -95,13 +104,24 @@ export default function ManagementStatusUpdate() {
 
         // Apply column filters
         columns.forEach(col => {
-            if (filters[col]) {
-                const filterVal = filters[col].toLowerCase();
-                filtered = filtered.filter(item => {
-                    const val = item[col] ? String(item[col]).toLowerCase() : '';
-                    return val.includes(filterVal);
-                });
+            const filterVal = filters[col];
+
+            // Skip empty filters
+            if (!filterVal || (Array.isArray(filterVal) && filterVal.length === 0)) {
+                return;
             }
+
+            filtered = filtered.filter(item => {
+                const val = item[col] ? String(item[col]).toLowerCase() : '';
+
+                // Multi-select filter (array)
+                if (Array.isArray(filterVal)) {
+                    return filterVal.includes(item[col]);
+                }
+
+                // Text filter (string)
+                return val.includes(filterVal.toLowerCase());
+            });
         });
 
         // Apply date range filter
@@ -128,8 +148,13 @@ export default function ManagementStatusUpdate() {
         setCurrentPage(1);
     };
 
+    const handleMultiSelectChange = (field, selectedValues) => {
+        setFilters(prev => ({ ...prev, [field]: selectedValues }));
+        setCurrentPage(1);
+    };
+
     const clearFilters = () => {
-        setFilters({ NUMERO: '', NOVEDAD_EN_GESTION: '' });
+        setFilters({ NUMERO: '', NOVEDAD_EN_GESTION: [] });
         setDateFilterType('all');
         setDateFilterValue('');
     };
@@ -235,14 +260,13 @@ export default function ManagementStatusUpdate() {
                                         <div style={{ marginBottom: showFilters ? '0.25rem' : '0' }}>{col.replace('_', ' ')}</div>
                                         {showFilters && (
                                             selectFields.includes(col) ? (
-                                                <select
-                                                    value={filters[col]}
-                                                    onChange={(e) => handleFilterChange(col, e.target.value)}
-                                                    style={{ width: '100%', padding: '0.2rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', borderRadius: '4px' }}
-                                                >
-                                                    <option value="">Todos</option>
-                                                    {(uniqueValues[col] || []).map(val => <option key={val} value={val}>{val}</option>)}
-                                                </select>
+                                                <MultiSelectFilter
+                                                    label={col.replace('_', ' ')}
+                                                    values={uniqueValues[col] || []}
+                                                    selectedValues={filters[col] || []}
+                                                    onChange={(values) => handleMultiSelectChange(col, values)}
+                                                    hasEmptyValues={hasEmptyValues[col] || false}
+                                                />
                                             ) : (
                                                 <input value={filters[col]} onChange={(e) => handleFilterChange(col, e.target.value)} placeholder="..." style={{ width: '100%', padding: '0.2rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', borderRadius: '4px' }} />
                                             )

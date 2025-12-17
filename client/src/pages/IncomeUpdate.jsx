@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import LoadingOverlay from '../components/LoadingOverlay';
 import { downloadTemplate } from '../utils/ExcelUtils';
 import { useZxing } from "react-zxing";
+import MultiSelectFilter, { EMPTY_VALUE } from '../components/MultiSelectFilter';
 
 import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 import Tesseract from 'tesseract.js';
@@ -258,8 +259,14 @@ export default function IncomeUpdate() {
     const columns = ['NUMERO', 'REGISTRO_SIM', 'FECHA_INGRESO', 'ICCID'];
     const selectFields = ['REGISTRO_SIM', 'FECHA_INGRESO'];
 
-    const [filters, setFilters] = useState({ NUMERO: '', REGISTRO_SIM: '', FECHA_INGRESO: '', ICCID: '' });
+    const [filters, setFilters] = useState({
+        NUMERO: '',
+        REGISTRO_SIM: [],
+        FECHA_INGRESO: [],
+        ICCID: ''
+    });
     const [uniqueValues, setUniqueValues] = useState({});
+    const [hasEmptyValues, setHasEmptyValues] = useState({});
 
     // Modes & Modals
     const [isScanning, setIsScanning] = useState(false);
@@ -302,16 +309,20 @@ export default function IncomeUpdate() {
     useEffect(() => {
         if (sales.length > 0) {
             const unique = {};
+            const hasEmpty = {};
             selectFields.forEach(field => {
-                const values = [...new Set(sales.map(s => {
-                    let val = s[field];
-                    if (val === true) return 'true';
-                    if (val === false) return 'false';
-                    return val;
+                const allValues = sales.map(s => s[field]);
+                hasEmpty[field] = allValues.some(v => v == null || v === '');
+
+                const values = [...new Set(allValues.map(v => {
+                    if (v === true) return 'true';
+                    if (v === false) return 'false';
+                    return v;
                 }).filter(v => v !== null && v !== undefined && v !== ''))];
                 unique[field] = values.sort();
             });
             setUniqueValues(unique);
+            setHasEmptyValues(hasEmpty);
         }
     }, [sales]);
 
@@ -319,17 +330,22 @@ export default function IncomeUpdate() {
     useEffect(() => {
         let filtered = sales;
         columns.forEach(col => {
-            if (filters[col]) {
-                const filterVal = filters[col].toLowerCase();
-                filtered = filtered.filter(item => {
-                    let val = item[col];
-                    if (val === true) val = 'true';
-                    else if (val === false) val = 'false';
-                    else val = val ? String(val) : '';
+            const filterVal = filters[col];
+            if (!filterVal || (Array.isArray(filterVal) && filterVal.length === 0)) return;
 
-                    return val.toLowerCase().includes(filterVal);
-                });
-            }
+            filtered = filtered.filter(item => {
+                let val = item[col];
+                if (val === true) val = 'true';
+                else if (val === false) val = 'false';
+                else val = val ? String(val) : '';
+
+                // Multi-select filter (array)
+                if (Array.isArray(filterVal)) {
+                    return filterVal.includes(item[col]);
+                }
+                // Text filter
+                return val.toLowerCase().includes(filterVal.toLowerCase());
+            });
         });
         setFilteredSales(filtered);
     }, [filters, sales]);
@@ -339,7 +355,12 @@ export default function IncomeUpdate() {
         setCurrentPage(1);
     };
 
-    const clearFilters = () => setFilters({ NUMERO: '', REGISTRO_SIM: '', FECHA_INGRESO: '', ICCID: '' });
+    const handleMultiSelectChange = (field, values) => {
+        setFilters(prev => ({ ...prev, [field]: values }));
+        setCurrentPage(1);
+    };
+
+    const clearFilters = () => setFilters({ NUMERO: '', REGISTRO_SIM: [], FECHA_INGRESO: [], ICCID: '' });
 
     // --- Scanner Logic ---
     const handleScanMatch = (scannedIccid) => {
@@ -561,14 +582,13 @@ export default function IncomeUpdate() {
                                         <div style={{ marginBottom: showFilters ? '0.25rem' : '0' }}>{col.replace('_', ' ')}</div>
                                         {showFilters && (
                                             selectFields.includes(col) ? (
-                                                <select
-                                                    value={filters[col]}
-                                                    onChange={(e) => handleFilterChange(col, e.target.value)}
-                                                    style={{ width: '100%', padding: '0.2rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', borderRadius: '4px' }}
-                                                >
-                                                    <option value="">Todos</option>
-                                                    {(uniqueValues[col] || []).map(val => <option key={val} value={val}>{val === 'true' ? 'VERDADERO' : val === 'false' ? 'FALSO' : val}</option>)}
-                                                </select>
+                                                <MultiSelectFilter
+                                                    label={col.replace('_', ' ')}
+                                                    values={uniqueValues[col] || []}
+                                                    selectedValues={filters[col] || []}
+                                                    onChange={(values) => handleMultiSelectChange(col, values)}
+                                                    hasEmptyValues={hasEmptyValues[col] || false}
+                                                />
                                             ) : (
                                                 <input value={filters[col]} onChange={(e) => handleFilterChange(col, e.target.value)} placeholder="..." style={{ width: '100%', padding: '0.2rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', borderRadius: '4px' }} />
                                             )
