@@ -1,5 +1,5 @@
 import { db } from "../firebase";
-import { ref, set, get, child, update, onValue } from "firebase/database";
+import { ref, set, get, child, update, onValue, remove } from "firebase/database";
 
 /**
  * Actualiza ingresos (REGISTRO_SIM, FECHA_INGRESO) para una lista de números.
@@ -177,7 +177,7 @@ export const addSales = async (month, sales) => {
                 ICCID: sale.ICCID ? String(sale.ICCID) : "", // "ICID" mapped to ICCID
                 FECHA_INGRESO: normalizeDate(sale.FECHA_INGRESO) || "",
                 FECHA_ACTIVACION: normalizeDate(sale.FECHA_ACTIVACION) || "",
-                ESTADO_SIM: normalizeEstadoSim(sale.ESTADO_SIM) || "",
+                ESTADO_SIM: normalizeEstadoSim(sale.ESTADO_SIM) || "ACTIVA",
                 TIPO_VENTA: normalizeTipoVenta(sale.TIPO_VENTA) || "",
                 NOVEDAD_EN_GESTION: normalizeNovedad(sale.NOVEDAD_EN_GESTION) || "",
                 CONTACTO_1: sale.CONTACTO_1 || "",
@@ -801,10 +801,39 @@ export const importSales = async (month, salesData) => {
             }
 
         } catch (error) {
-            console.error(`Error processing row ${rawSale.NUMERO}:`, error);
-            summary.errors.push(`Error en ${rawSale.NUMERO}: ${error.message}`);
+            console.error("Error importing sale:", error);
+            summary.errors.push(`Error en fila: ${JSON.stringify(rawSale)} - ${error.message}`);
         }
     }
 
     return summary;
 };
+
+/**
+ * Elimina una lista de ventas (por NUMERO) de un mes específico.
+ * @param {string} month - Mes de operación
+ * @param {Array} numeros - Lista de números (IDs) a eliminar
+ * @returns {Promise<Object>} - Resumen { deleted, errors }
+ */
+export const deleteSales = async (month, numeros) => {
+    const summary = { deleted: 0, errors: [] };
+
+    if (!month || !numeros || numeros.length === 0) {
+        throw new Error("Month and list of numbers are required.");
+    }
+
+    const salesRef = ref(db, `months/${month}/sales`);
+
+    for (const numero of numeros) {
+        try {
+            await remove(child(salesRef, String(numero)));
+            summary.deleted++;
+        } catch (error) {
+            console.error(`Error deleting ${numero}:`, error);
+            summary.errors.push(`Error al eliminar ${numero}: ${error.message}`);
+        }
+    }
+
+    return summary;
+};
+

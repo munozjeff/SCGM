@@ -4,6 +4,7 @@ import { updateUserActivity } from '../services/UserService';
 import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import LoadingOverlay from '../components/LoadingOverlay';
+import { downloadTemplate } from '../utils/ExcelUtils';
 
 export default function ActivationUpdate() {
     const { currentUser } = useAuth();
@@ -175,9 +176,12 @@ export default function ActivationUpdate() {
                             {existingMonths.map(m => <option key={m}>{m}</option>)}
                         </select>
 
-                        <div style={{ position: 'relative', overflow: 'hidden', display: 'inline-block', flexShrink: 0 }}>
-                            <button className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', whiteSpace: 'nowrap' }} disabled={!month}>📤 Importar</button>
-                            <input type="file" accept=".xlsx" onChange={handleFileUpload} disabled={!month} style={{ position: 'absolute', left: 0, top: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button className="btn-secondary" onClick={() => downloadTemplate(['NUMERO', 'FECHA_ACTIVACION'], 'Plantilla_Activacion')} style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>📥 Plantilla</button>
+                            <div style={{ position: 'relative', overflow: 'hidden', display: 'inline-block', flexShrink: 0 }}>
+                                <button className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', whiteSpace: 'nowrap' }} disabled={!month}>📤 Importar</button>
+                                <input type="file" accept=".xlsx" onChange={handleFileUpload} disabled={!month} style={{ position: 'absolute', left: 0, top: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+                            </div>
                         </div>
                     </div>
 

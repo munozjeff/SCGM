@@ -4,6 +4,7 @@ import { updateUserActivity } from '../services/UserService';
 import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import LoadingOverlay from '../components/LoadingOverlay';
+import { downloadTemplate } from '../utils/ExcelUtils';
 
 export default function ManagementStatusUpdate() {
     //const { currentUser } = useAuth();
@@ -201,15 +202,19 @@ export default function ManagementStatusUpdate() {
                             {existingMonths.map(m => <option key={m}>{m}</option>)}
                         </select>
 
-                        <select value={dateFilterType} onChange={e => setDateFilterType(e.target.value)} style={{ padding: '0.25rem 0.4rem', fontSize: '0.75rem', minWidth: '90px', border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.2)', color: 'white', borderRadius: '4px' }}>
-                            <option value="all">Todas</option>
-                            <option value="before">Antes</option>
-                            <option value="after">Después</option>
-                        </select>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button className="btn-secondary" onClick={() => downloadTemplate(['NUMERO', 'NOVEDAD_EN_GESTION'], 'Plantilla_Gestion')} style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>📥 Plantilla</button>
 
-                        {dateFilterType !== 'all' && (
-                            <input type="date" value={dateFilterValue} onChange={e => setDateFilterValue(e.target.value)} style={{ padding: '0.25rem 0.4rem', fontSize: '0.75rem', border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.2)', color: 'white', borderRadius: '4px' }} />
-                        )}
+                            <select value={dateFilterType} onChange={e => setDateFilterType(e.target.value)} style={{ padding: '0.25rem 0.4rem', fontSize: '0.75rem', minWidth: '90px', border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.2)', color: 'white', borderRadius: '4px' }}>
+                                <option value="all">Todas</option>
+                                <option value="before">Antes</option>
+                                <option value="after">Después</option>
+                            </select>
+
+                            {dateFilterType !== 'all' && (
+                                <input type="date" value={dateFilterValue} onChange={e => setDateFilterValue(e.target.value)} style={{ padding: '0.25rem 0.4rem', fontSize: '0.75rem', border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.2)', color: 'white', borderRadius: '4px' }} />
+                            )}
+                        </div>
                     </div>
                     <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
                         <button onClick={() => setShowFilters(!showFilters)} style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem', color: showFilters ? '#10b981' : '#60a5fa', background: 'transparent', border: 'none', cursor: 'pointer' }} title={showFilters ? 'Ocultar Filtros' : 'Mostrar Filtros'}>

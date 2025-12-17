@@ -4,6 +4,7 @@ import { updateUserActivity } from '../services/UserService';
 import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import LoadingOverlay from '../components/LoadingOverlay';
+import { downloadTemplate } from '../utils/ExcelUtils';
 
 export default function SimStatusUpdate() {
     const { currentUser } = useAuth();
@@ -19,10 +20,10 @@ export default function SimStatusUpdate() {
     const [itemsPerPage, setItemsPerPage] = useState(50);
 
     // Columns
-    const columns = ['NUMERO', 'ESTADO_SIM'];
+    const columns = ['NUMERO', 'ESTADO_SIM', 'ICCID'];
     const selectFields = ['ESTADO_SIM'];
 
-    const [filters, setFilters] = useState({ NUMERO: '', ESTADO_SIM: '' });
+    const [filters, setFilters] = useState({ NUMERO: '', ESTADO_SIM: '', ICCID: '' });
     const [uniqueValues, setUniqueValues] = useState({});
 
     // Filter Visibility State
@@ -89,7 +90,7 @@ export default function SimStatusUpdate() {
         setCurrentPage(1);
     };
 
-    const clearFilters = () => setFilters({ NUMERO: '', ESTADO_SIM: '' });
+    const clearFilters = () => setFilters({ NUMERO: '', ESTADO_SIM: '', ICCID: '' });
 
     const handleEditClick = (record) => {
         setEditForm({ ...record });
@@ -98,7 +99,7 @@ export default function SimStatusUpdate() {
     };
 
     const handleNewRecord = () => {
-        setEditForm({ NUMERO: '', ESTADO_SIM: '' });
+        setEditForm({ NUMERO: '', ESTADO_SIM: '', ICCID: '' });
         setIsNewRecord(true);
         setIsEditModalOpen(true);
     };
@@ -126,7 +127,8 @@ export default function SimStatusUpdate() {
                 const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
                 const updates = data.map(row => ({
                     NUMERO: String(row['NUMERO'] || row['Numero'] || '').trim(),
-                    ESTADO_SIM: row['ESTADO SIM'] || row['Estado Sim'] || row['ESTADO_SIM']
+                    ESTADO_SIM: row['ESTADO SIM'] || row['Estado Sim'] || row['ESTADO_SIM'],
+                    ICCID: row['ICCID'] || row['Iccid'] || row['ICID']
                 })).filter(r => r.NUMERO);
                 const res = await updateSimStatus(month, updates);
                 setResult(res);
@@ -135,6 +137,10 @@ export default function SimStatusUpdate() {
             setLoading(false);
         };
         reader.readAsBinaryString(file);
+    };
+
+    const handleDownloadTemplate = () => {
+        downloadTemplate(['NUMERO', 'ESTADO_SIM', 'ICCID'], 'Plantilla_Estado_SIM');
     };
 
     // Pagination Logic
@@ -158,9 +164,12 @@ export default function SimStatusUpdate() {
                             <option value="">Mes...</option>
                             {existingMonths.map(m => <option key={m}>{m}</option>)}
                         </select>
-                        <div style={{ position: 'relative', overflow: 'hidden', display: 'inline-block', flexShrink: 0 }}>
-                            <button className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', whiteSpace: 'nowrap' }} disabled={!month}>📤 Importar</button>
-                            <input type="file" accept=".xlsx" onChange={handleFileUpload} disabled={!month} style={{ position: 'absolute', left: 0, top: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button className="btn-secondary" onClick={handleDownloadTemplate} style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>📥 Plantilla</button>
+                            <div style={{ position: 'relative', overflow: 'hidden', display: 'inline-block', flexShrink: 0 }}>
+                                <button className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', whiteSpace: 'nowrap' }} disabled={!month}>📤 Importar</button>
+                                <input type="file" accept=".xlsx" onChange={handleFileUpload} disabled={!month} style={{ position: 'absolute', left: 0, top: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+                            </div>
                         </div>
                     </div>
                     <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
@@ -203,6 +212,7 @@ export default function SimStatusUpdate() {
                                 <tr key={index} onDoubleClick={() => handleEditClick(item)} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', background: index % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }} className="table-row-hover">
                                     <td style={{ padding: '0.6rem' }}>{item.NUMERO}</td>
                                     <td style={{ padding: '0.6rem' }}>{item.ESTADO_SIM}</td>
+                                    <td style={{ padding: '0.6rem' }}>{item.ICCID || '-'}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -289,6 +299,10 @@ export default function SimStatusUpdate() {
                                     <option value="OTRO CANAL">OTRO CANAL</option>
                                     <option value="No se encontro información del cliente">No se encontro información del cliente</option>
                                 </select>
+                            </div>
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>ICCID</label>
+                                <input value={editForm.ICCID || ''} onChange={e => setEditForm({ ...editForm, ICCID: e.target.value })} style={{ width: '100%', padding: '0.5rem', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid var(--glass-border)' }} />
                             </div>
                             <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
                                 <button type="button" onClick={() => setIsEditModalOpen(false)} className="btn-secondary" disabled={loading}>Cancelar</button>

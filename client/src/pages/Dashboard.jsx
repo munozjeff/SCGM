@@ -58,70 +58,137 @@ export default function Dashboard() {
 
     // --- Lógica de Filtros (Retornan Arrays) ---
 
-    // 1. SIMs Activas (ESTADO_SIM=ACTIVA)
-    const filterActiveSims = (salesData) => {
-        return salesData.filter(sale => sale.ESTADO_SIM === 'ACTIVA');
+    // Utility: Parse date efficiently for comparison (YYYY-MM-DD)
+    const parseDate = (dateStr) => {
+        if (!dateStr) return null;
+        // Adjust for potential timezone issues if needed, but string comparison YYYY-MM-DD is safest if format is consistent
+        // Assuming YYYY-MM-DD from normalizeDate
+        return new Date(dateStr + 'T00:00:00');
     };
 
-    // 2. Gestión Pendiente (ESTADO=ACTIVA y NOVEDAD_EN_GESTION vacío)
-    const filterPendingManagement = (salesData) => {
+    const isToday = (dateStr) => {
+        if (!dateStr) return false;
+        const d = parseDate(dateStr);
+        const today = new Date();
+        return d.getDate() === today.getDate() &&
+            d.getMonth() === today.getMonth() &&
+            d.getFullYear() === today.getFullYear();
+    };
+
+    const isTomorrow = (dateStr) => {
+        if (!dateStr) return false;
+        const d = parseDate(dateStr);
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        return d.getDate() === tomorrow.getDate() &&
+            d.getMonth() === tomorrow.getMonth() &&
+            d.getFullYear() === tomorrow.getFullYear();
+    };
+
+    const isDateBeforeOrEqualToday = (dateStr) => {
+        if (!dateStr) return false;
+        const d = parseDate(dateStr);
+        const today = new Date();
+        today.setHours(23, 59, 59, 999); // End of today
+        return d <= today;
+    };
+
+
+    // 1. Gestión Pendiente / Sin Gestión (User Request: No management data AND Activation Date <= Today)
+    // "cantidad de registros con novedad en gestion que no tenga datos... y que ademas su fecha de activacion sea igual o anterior a la fecha actual"
+    const filterMissingManagement = (salesData) => {
         return salesData.filter(sale => {
-            const isActive = sale.ESTADO_SIM === 'ACTIVA';
             const hasNoManagement = !sale.NOVEDAD_EN_GESTION || sale.NOVEDAD_EN_GESTION.trim() === '';
-            return isActive && hasNoManagement;
+            // Assuming this applies to Active SIMs predominantly, but user text emphasized the date and empty field.
+            // Adding ESTADO_SIM === 'ACTIVA' is safer for "Gestión", but let's stick to the specific field request + Date.
+            // Usually "Gestión" implies the SIM is in use.
+            const isActive = sale.ESTADO_SIM === 'ACTIVA';
+            return isActive && hasNoManagement && isDateBeforeOrEqualToday(sale.FECHA_ACTIVACION);
         });
     };
 
-    // 3. Ventas con Novedades (DESCRIPCION_NOVEDAD no vacío)
-    const filterSalesWithIssues = (salesData) => {
-        return salesData.filter(sale => {
-            return sale.DESCRIPCION_NOVEDAD && sale.DESCRIPCION_NOVEDAD.trim() !== '';
-        });
-    };
-
-    // 4. Sin Fecha de Activación (FECHA_ACTIVACION vacío)
-    const filterNoActivationDate = (salesData) => {
+    // 2. Sin Fecha de Activación
+    const filterMissingActivation = (salesData) => {
         return salesData.filter(sale => !sale.FECHA_ACTIVACION || sale.FECHA_ACTIVACION.trim() === '');
     };
 
-    // 5. Estado Vacío (ESTADO_SIM vacío)
-    const filterEmptyStatus = (salesData) => {
-        return salesData.filter(sale => !sale.ESTADO_SIM || sale.ESTADO_SIM.trim() === '');
+    // 3. Sin Fecha de Ingreso
+    const filterMissingIncome = (salesData) => {
+        return salesData.filter(sale => !sale.FECHA_INGRESO || sale.FECHA_INGRESO.trim() === '');
     };
 
-    // 6. Alertas de Saldo Alto
-    const filterHighBalance = (salesData) => {
+    // 2. Activations Today
+    const filterActivationsToday = (salesData) => {
+        return salesData.filter(sale => isToday(sale.FECHA_ACTIVACION));
+    };
+
+    // 3. Activations Tomorrow
+    const filterActivationsTomorrow = (salesData) => {
+        return salesData.filter(sale => isTomorrow(sale.FECHA_ACTIVACION));
+    };
+
+    // 4. Gestión Pendiente (User Definition: Active Status AND Date <= Today)
+    const filterPendingManagement = (salesData) => {
         return salesData.filter(sale => {
-            const saldo = parseFloat(sale.SALDO) || 0;
-            const abono = parseFloat(sale.ABONO) || 0;
-            return saldo > 10000 && abono <= 10000;
+            return sale.ESTADO_SIM === 'ACTIVA' && isDateBeforeOrEqualToday(sale.FECHA_ACTIVACION);
         });
     };
 
-    // Distribución (Solo cálculo, no es filtro de exportación directa en formato lista simple igual que las otras)
+    // 5. Portfolio (Cartera)
+    const filterPortfolio = (salesData) => {
+        return salesData.filter(sale => {
+            const saldo = parseFloat(sale.SALDO) || 0;
+            return saldo > 0;
+        });
+    };
+
+    // Distribución Breakdown
     const calculateSimStatusDistribution = (salesData) => {
         const total = salesData.length;
         if (total === 0) return [];
-        const statusCount = {};
+
+        let activeBeforeOrToday = 0;
+        let activeAfterToday = 0;
+        let inactive = 0;
+        let sent = 0;
+
         salesData.forEach(sale => {
-            const status = sale.ESTADO_SIM || 'Sin Estado';
-            statusCount[status] = (statusCount[status] || 0) + 1;
+            const status = sale.ESTADO_SIM || '';
+            const activDate = sale.FECHA_ACTIVACION;
+
+            if (status === 'ACTIVA') {
+                if (isDateBeforeOrEqualToday(activDate)) {
+                    activeBeforeOrToday++;
+                } else {
+                    activeAfterToday++;
+                }
+            } else if (status === 'INACTIVA') {
+                inactive++;
+            } else if (status === 'ENVIADA') {
+                sent++;
+            }
+            // Others ignored in specific breakdown but included in total count
         });
-        return Object.entries(statusCount).map(([status, count]) => ({
-            status,
-            count,
-            percentage: ((count / total) * 100).toFixed(1)
-        })).sort((a, b) => b.count - a.count);
+
+        // Helper for percentage
+        const calcPct = (count) => ((count / total) * 100).toFixed(1);
+
+        return [
+            { status: 'Activas (<= Hoy)', count: activeBeforeOrToday, percentage: calcPct(activeBeforeOrToday) },
+            { status: 'Activas (> Hoy)', count: activeAfterToday, percentage: calcPct(activeAfterToday) },
+            { status: 'Inactivas', count: inactive, percentage: calcPct(inactive) },
+            { status: 'Enviadas', count: sent, percentage: calcPct(sent) },
+        ];
     };
 
     const calculateAllMetrics = (salesData) => {
         const calculatedMetrics = {
-            activeSims: filterActiveSims(salesData),
-            pendingManagement: filterPendingManagement(salesData),
-            salesWithIssues: filterSalesWithIssues(salesData),
-            noActivationDate: filterNoActivationDate(salesData),
-            emptyStatus: filterEmptyStatus(salesData),
-            highBalanceAlerts: filterHighBalance(salesData),
+            missingManagement: filterMissingManagement(salesData),
+            missingActivation: filterMissingActivation(salesData),
+            missingIncome: filterMissingIncome(salesData),
+            activationsToday: filterActivationsToday(salesData),
+            activationsTomorrow: filterActivationsTomorrow(salesData),
+            portfolio: filterPortfolio(salesData),
             simStatusDistribution: calculateSimStatusDistribution(salesData),
             totalSales: salesData.length
         };
@@ -154,8 +221,9 @@ export default function Dashboard() {
         XLSX.writeFile(wb, `${fileName}_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
-    // Componente: Pie Chart
+    // Componente: Pie Chart (Restored)
     const PieChart = ({ data }) => {
+        // Data format: [{ status: '...', count: 10, percentage: '12.5' }, ...]
         const size = 200;
         const center = size / 2;
         const radius = size / 2 - 10;
@@ -163,7 +231,7 @@ export default function Dashboard() {
 
         let currentAngle = -90;
         const slices = data.map((item, index) => {
-            const percentage = parseFloat(item.percentage);
+            const percentage = parseFloat(item.percentage); // Ensure float
             const angle = (percentage / 100) * 360;
             const startAngle = currentAngle;
             const endAngle = currentAngle + angle;
@@ -182,22 +250,24 @@ export default function Dashboard() {
             };
         });
 
+        // Legend separate
         return (
-            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
-                <svg width={size} height={size} style={{ flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: '2rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
+                <svg width={size} height={size} style={{ flexShrink: 0, filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))' }}>
                     {slices.map((slice, i) => (
-                        <path key={i} d={slice.path} fill={slice.color} stroke="rgba(255,255,255,0.1)" strokeWidth="2">
+                        <path key={i} d={slice.path} fill={slice.color} stroke="rgba(255,255,255,0.05)" strokeWidth="1">
                             <title>{`${slice.item.status}: ${slice.item.percentage}%`}</title>
                         </path>
                     ))}
+                    {/* Inner hole for donut effect if desired, but sticking to pie for now as requested */}
                 </svg>
-                <div style={{ flex: 1, minWidth: '150px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.75rem', flex: 1 }}>
                     {slices.map((slice, i) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', fontSize: '0.85rem' }}>
-                            <div style={{ width: '12px', height: '12px', borderRadius: '2px', background: slice.color }} />
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem' }}>
+                            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: slice.color, flexShrink: 0 }} />
                             <div>
-                                <div style={{ fontWeight: '500' }}>{slice.item.status}</div>
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{slice.item.percentage}% ({slice.item.count})</div>
+                                <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{slice.item.status}</div>
+                                <div style={{ color: 'var(--text-muted)' }}>{slice.item.count} ({slice.item.percentage}%)</div>
                             </div>
                         </div>
                     ))}
@@ -284,52 +354,62 @@ export default function Dashboard() {
             {!loading && metrics && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', alignItems: 'stretch' }}>
 
-                    {/* 1. Gestión Pendiente */}
+                    {/* 1. Gestión Pendiente (Sin info y Fecha <= Hoy) */}
                     <MetricCard
                         icon="⚠️"
                         title="Gestión Pendiente"
-                        data={metrics.pendingManagement}
-                        subtitle="Activas SIN información de gestión"
+                        data={metrics.missingManagement}
+                        subtitle="Sin gestión y Activación <= Hoy"
                         color="warning"
                         onExport={handleExport}
                     />
 
-                    {/* 2. Sin Fecha Activación */}
+                    {/* 2. Sin Fecha de Activación */}
                     <MetricCard
                         icon="📅"
                         title="Sin Fecha Activación"
-                        data={metrics.noActivationDate}
-                        subtitle="Registros con fecha de activación vacía"
+                        data={metrics.missingActivation}
+                        subtitle="Falta FECHA_ACTIVACION"
                         color="danger"
                         onExport={handleExport}
                     />
 
-                    {/* 3. Estado Vacío */}
+                    {/* 3. Sin Fecha de Ingreso */}
                     <MetricCard
-                        icon="❓"
-                        title="Sin Estado"
-                        data={metrics.emptyStatus}
-                        subtitle="Registros con campo ESTADO_SIM vacío"
+                        icon="📥"
+                        title="Sin Fecha Ingreso"
+                        data={metrics.missingIncome}
+                        subtitle="Falta FECHA_INGRESO"
                         color="danger"
                         onExport={handleExport}
                     />
 
-                    {/* 4. Activas */}
+                    {/* 4. Activaciones Hoy */}
                     <MetricCard
                         icon="✅"
-                        title="Total Activas"
-                        data={metrics.activeSims}
-                        subtitle="Total líneas en estado ACTIVA"
-                        color="success"
+                        title="Activación Hoy"
+                        data={metrics.activationsToday}
+                        subtitle={`Fecha activación: Hoy`}
+                        color="info"
                         onExport={handleExport}
                     />
 
-                    {/* 5. Saldo Alto */}
+                    {/* 4. Activaciones Mañana */}
+                    <MetricCard
+                        icon="🌤️"
+                        title="Activación Mañana"
+                        data={metrics.activationsTomorrow}
+                        subtitle={`Fecha activación: Mañana`}
+                        color="info"
+                        onExport={handleExport}
+                    />
+
+                    {/* 5. Cartera */}
                     <MetricCard
                         icon="💰"
-                        title="Saldo Alto / Bajo Abono"
-                        data={metrics.highBalanceAlerts}
-                        subtitle="Saldo > 10k y Abono <= 10k"
+                        title="Cartera"
+                        data={metrics.portfolio}
+                        subtitle="Registros con Saldo > 0"
                         color="danger"
                         onExport={handleExport}
                     />

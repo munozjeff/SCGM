@@ -1,14 +1,20 @@
 import { useState, useEffect } from 'react';
-import { getAllMonths, listenToSalesByMonth, importSales } from '../services/SalesService';
+import { getAllMonths, listenToSalesByMonth, importSales, deleteSales } from '../services/SalesService';
+import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import LoadingOverlay from '../components/LoadingOverlay';
 
 export default function DatabaseView() {
+    const { currentUser, userRole } = useAuth();
     const [months, setMonths] = useState([]);
     const [selectedMonth, setSelectedMonth] = useState('');
     const [sales, setSales] = useState([]);
     const [filteredSales, setFilteredSales] = useState([]);
     const [loading, setLoading] = useState(false);
+
+    // ... (rest of code) ...
+
+
 
     // Paginación
     const [currentPage, setCurrentPage] = useState(1);
@@ -150,6 +156,40 @@ export default function DatabaseView() {
         XLSX.writeFile(wb, `BaseDatos_${selectedMonth || 'Export'}.xlsx`);
     };
 
+    const handleDeleteFiltered = async () => {
+        if (!userRole || userRole !== 'admin') {
+            return alert("Acceso denegado. Solo administradores pueden eliminar registros.");
+        }
+        if (!selectedMonth) return alert("Selecciona un mes.");
+        if (filteredSales.length === 0) return alert("No hay registros filtrados para eliminar.");
+
+        const count = filteredSales.length;
+        const confirmMsg = `⚠️ ADVERTENCIA ⚠️\n\nEstás a punto de eliminar ${count} registros visualizados actualmente.\n\nEsta acción NO se puede deshacer.\n\n¿Estás seguro de que deseas continuar?`;
+
+        if (window.confirm(confirmMsg)) {
+            // Second confirmation for safety
+            if (!window.confirm(`Confirma nuevamente: ¿Realmente deseas ELIMINAR ${count} registros de la base de datos?`)) return;
+
+            setLoading(true);
+            try {
+                const numerosToDelete = filteredSales.map(s => s.NUMERO);
+                const result = await deleteSales(selectedMonth, numerosToDelete);
+
+                setLoading(false);
+                let msg = `Eliminación completada.\n\n🗑️ Eliminados: ${result.deleted}`;
+                if (result.errors.length > 0) {
+                    msg += `\n❌ Errores: ${result.errors.length}`;
+                }
+                alert(msg);
+                // Sales list will update automatically via listener
+            } catch (error) {
+                console.error("Error deleting sales:", error);
+                alert("Error al eliminar: " + error.message);
+                setLoading(false);
+            }
+        }
+    };
+
     const handleImportClick = () => {
         document.getElementById('import-excel-input').click();
     };
@@ -273,6 +313,28 @@ export default function DatabaseView() {
                                 }}
                             >
                                 📥 Exportar Excel
+                            </button>
+                        )}
+
+                        {filteredSales.length > 0 && userRole === 'admin' && (
+                            <button
+                                onClick={handleDeleteFiltered}
+                                style={{
+                                    fontSize: '0.8rem',
+                                    padding: '0.5rem 1rem',
+                                    background: '#ef4444',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    color: 'white',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    marginLeft: '0.5rem'
+                                }}
+                                title="Eliminar registros filtrados"
+                            >
+                                🗑️ Eliminar Filtrados
                             </button>
                         )}
                     </div>
