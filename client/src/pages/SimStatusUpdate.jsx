@@ -327,6 +327,7 @@ export default function SimStatusUpdate() {
                                     <option value="ACTIVA">ACTIVA</option>
                                     <option value="INACTIVA">INACTIVA</option>
                                     <option value="ENVIADA">ENVIADA</option>
+                                    <option value="CANCELADA">CANCELADA</option>
                                     <option value="OTRO CANAL">OTRO CANAL</option>
                                     <option value="No se encontro información del cliente">No se encontro información del cliente</option>
                                 </select>

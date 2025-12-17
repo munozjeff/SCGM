@@ -1,6 +1,30 @@
 import { db } from "../firebase";
 import { ref, set, get, child, update, onValue, remove } from "firebase/database";
 
+// --- VALIDATION CONSTANTS ---
+export const VALID_ESTADO_SIM = [
+    "ACTIVA",
+    "INACTIVA",
+    "ENVIADA",
+    "OTRO CANAL",
+    "No se encontro información del cliente"
+];
+
+export const VALID_TIPO_VENTA = [
+    "portabilidad",
+    "linea nueva",
+    "ppt"
+];
+
+export const VALID_NOVEDAD_GESTION = [
+    "RECHAZADO",
+    "CE",
+    "EN ESPERA",
+    "ENVIO PENDIENTE",
+    "SIN CONTACTO"
+];
+// ----------------------------
+
 /**
  * Actualiza ingresos (REGISTRO_SIM, FECHA_INGRESO) para una lista de números.
  * @param {string} month - Mes de operación
@@ -198,9 +222,8 @@ export const addSales = async (month, sales) => {
             // 3. Specific Conditional Validations
 
             // ESTADO_SIM Valid Options
-            const validEstadoSim = ["ACTIVA", "INACTIVA", "ENVIADA", "OTRO CANAL", "No se encontro información del cliente", ""];
-            if (!validEstadoSim.includes(newSale.ESTADO_SIM)) {
-                throw new Error(`Invalid ESTADO_SIM: ${newSale.ESTADO_SIM}`);
+            if (newSale.ESTADO_SIM && !VALID_ESTADO_SIM.includes(newSale.ESTADO_SIM)) {
+                throw new Error(`Invalid ESTADO_SIM: '${newSale.ESTADO_SIM}'. Allowed: ${VALID_ESTADO_SIM.join(', ')}`);
             }
 
             // ENVIADA requires GUIA and TRANSPORTADORA
@@ -211,15 +234,13 @@ export const addSales = async (month, sales) => {
             }
 
             // TIPO_VENTA Valid Options
-            const validTipoVenta = ["portabilidad", "linea nueva", "ppt", ""];
-            if (!validTipoVenta.includes(newSale.TIPO_VENTA)) {
-                throw new Error(`Invalid TIPO_VENTA: ${newSale.TIPO_VENTA}`);
+            if (newSale.TIPO_VENTA && !VALID_TIPO_VENTA.includes(newSale.TIPO_VENTA)) {
+                throw new Error(`Invalid TIPO_VENTA: '${newSale.TIPO_VENTA}'. Allowed: ${VALID_TIPO_VENTA.join(', ')}`);
             }
 
             // NOVEDAD_EN_GESTION Valid Options
-            const validNovedadGestion = ["RECHAZADO", "CE", "EN ESPERA", "ENVIO PENDIENTE", ""];
-            if (!validNovedadGestion.includes(newSale.NOVEDAD_EN_GESTION)) {
-                throw new Error(`Invalid NOVEDAD_EN_GESTION: ${newSale.NOVEDAD_EN_GESTION}`);
+            if (newSale.NOVEDAD_EN_GESTION && !VALID_NOVEDAD_GESTION.includes(newSale.NOVEDAD_EN_GESTION)) {
+                throw new Error(`Invalid NOVEDAD_EN_GESTION: '${newSale.NOVEDAD_EN_GESTION}'. Allowed: ${VALID_NOVEDAD_GESTION.join(', ')}`);
             }
 
             // Contacto Validation
@@ -456,6 +477,11 @@ export const updateActivationDate = async (month, updates) => {
  */
 export const updateSimStatus = async (month, updates) => {
     const summary = { updated: 0, skipped: 0, errors: [] };
+    // Error counters
+    let invalidEstadoSimCount = 0;
+    let missingNumeroCount = 0;
+    let notFoundCount = 0;
+    let otherErrorsCount = 0;
 
     if (!month || !updates || updates.length === 0) {
         throw new Error("Month and updates list are required.");
@@ -466,30 +492,21 @@ export const updateSimStatus = async (month, updates) => {
     for (const item of updates) {
         const numero = item.NUMERO;
         if (!numero) {
-            summary.errors.push(`Missing NUMERO: ${JSON.stringify(item)}`);
+            missingNumeroCount++;
             continue;
         }
 
         const updateData = {};
         if (item.ESTADO_SIM !== undefined) {
             const normalized = normalizeEstadoSim(item.ESTADO_SIM);
-            const validEstadoSim = ["ACTIVA", "INACTIVA", "ENVIADA", "OTRO CANAL", "No se encontro información del cliente", ""];
-            // Check normalized or original? Normalized should map to valid.
-            if (!validEstadoSim.includes(normalized)) {
-                // Try generous check? or strict? User asked for strict options.
-                summary.errors.push(`Invalid ESTADO_SIM for ${numero}: ${item.ESTADO_SIM}`);
-                continue;
+
+            if (!VALID_ESTADO_SIM.includes(normalized)) {
+                invalidEstadoSimCount++;
+                continue; // Skip this record
             }
             updateData.ESTADO_SIM = normalized;
         }
         if (item.ICCID) updateData.ICCID = item.ICCID;
-
-        // If 'ENVIADA', we strictly assume user handles GUIA/TRANSPORTADORA elsewhere or in same update if provided,
-        // but for safety, if just updating status we warn if they are missing? 
-        // For now, simpler update functions might not check cross-fields unless passed. 
-        // We will assume UI enforces it or we just check if it IS 'ENVIADA' in the update payload.
-        // NOTE: The previous `addSales` implementation enforced it. Here we are doing a patch update.
-        // It's safer to allow the update but maybe log it. Ideally the specialized page ensures data quality.
 
         if (Object.keys(updateData).length === 0) {
             summary.skipped++;
@@ -503,13 +520,19 @@ export const updateSimStatus = async (month, updates) => {
                 await update(child(salesRef, String(numero)), updateData);
                 summary.updated++;
             } else {
-                summary.errors.push(`Número no encontrado: ${numero} (No se permite crear)`);
+                notFoundCount++;
             }
         } catch (error) {
             console.error("Error updating SIM status:", error);
-            summary.errors.push(`Error updating ${numero}: ${error.message}`);
+            otherErrorsCount++;
         }
     }
+
+    // Generate Summary Errors
+    if (invalidEstadoSimCount > 0) summary.errors.push(`${invalidEstadoSimCount} registros no actualizados: ESTADO_SIM inválido (Permitidos: ${VALID_ESTADO_SIM.join(', ')})`);
+    if (missingNumeroCount > 0) summary.errors.push(`${missingNumeroCount} filas ignoradas: Falta NÚMERO`);
+    if (notFoundCount > 0) summary.errors.push(`${notFoundCount} números no encontrados (No se permite crear)`);
+    if (otherErrorsCount > 0) summary.errors.push(`${otherErrorsCount} errores de sistema al actualizar`);
 
     return summary;
 };
@@ -519,6 +542,11 @@ export const updateSimStatus = async (month, updates) => {
  */
 export const updateSalesType = async (month, updates) => {
     const summary = { updated: 0, skipped: 0, errors: [] };
+    // Error counters
+    let invalidTipoVentaCount = 0;
+    let missingNumeroCount = 0;
+    let notFoundCount = 0;
+    let otherErrorsCount = 0;
 
     if (!month || !updates || updates.length === 0) {
         throw new Error("Month and updates list are required.");
@@ -529,17 +557,17 @@ export const updateSalesType = async (month, updates) => {
     for (const item of updates) {
         const numero = item.NUMERO;
         if (!numero) {
-            summary.errors.push(`Missing NUMERO: ${JSON.stringify(item)}`);
+            missingNumeroCount++;
             continue;
         }
 
         const updateData = {};
         if (item.TIPO_VENTA !== undefined) {
             const normalized = normalizeTipoVenta(item.TIPO_VENTA);
-            const validTipoVenta = ["portabilidad", "linea nueva", "ppt", ""];
-            if (!validTipoVenta.includes(normalized)) {
-                summary.errors.push(`Invalid TIPO_VENTA for ${numero}: ${item.TIPO_VENTA}`);
-                continue;
+
+            if (!VALID_TIPO_VENTA.includes(normalized)) {
+                invalidTipoVentaCount++;
+                continue; // Skip this record
             }
             updateData.TIPO_VENTA = normalized;
         }
@@ -556,13 +584,19 @@ export const updateSalesType = async (month, updates) => {
                 await update(child(salesRef, String(numero)), updateData);
                 summary.updated++;
             } else {
-                summary.errors.push(`Número no encontrado: ${numero} (No se permite crear)`);
+                notFoundCount++;
             }
         } catch (error) {
             console.error("Error updating sales type:", error);
-            summary.errors.push(`Error updating ${numero}: ${error.message}`);
+            otherErrorsCount++;
         }
     }
+
+    // Generate Summary Errors
+    if (invalidTipoVentaCount > 0) summary.errors.push(`${invalidTipoVentaCount} registros no actualizados: TIPO_VENTA inválido (Permitidos: ${VALID_TIPO_VENTA.join(', ')})`);
+    if (missingNumeroCount > 0) summary.errors.push(`${missingNumeroCount} filas ignoradas: Falta NÚMERO`);
+    if (notFoundCount > 0) summary.errors.push(`${notFoundCount} números no encontrados (No se permite crear)`);
+    if (otherErrorsCount > 0) summary.errors.push(`${otherErrorsCount} errores de sistema al actualizar`);
 
     return summary;
 };
@@ -572,22 +606,28 @@ export const updateSalesType = async (month, updates) => {
  */
 export const updateManagementStatus = async (month, updates) => {
     const summary = { updated: 0, skipped: 0, errors: [] };
+    // Error counters
+    let invalidNovedadCount = 0;
+    let missingNumeroCount = 0;
+    let notFoundCount = 0;
+    let otherErrorsCount = 0;
+
     if (!month || !updates) throw new Error("Month and updates required.");
     const salesRef = ref(db, `months/${month}/sales`);
 
     for (const item of updates) {
         const numero = item.NUMERO;
         if (!numero) {
-            summary.errors.push(`Missing NUMERO: ${JSON.stringify(item)}`);
+            missingNumeroCount++;
             continue;
         }
         const updateData = {};
         if (item.NOVEDAD_EN_GESTION !== undefined) {
             const normalized = normalizeNovedad(item.NOVEDAD_EN_GESTION);
-            const validNovedadGestion = ["RECHAZADO", "CE", "EN ESPERA", "ENVIO PENDIENTE", ""];
-            if (!validNovedadGestion.includes(normalized)) {
-                summary.errors.push(`Invalid NOVEDAD_EN_GESTION for ${numero}: ${item.NOVEDAD_EN_GESTION}`);
-                continue;
+
+            if (!VALID_NOVEDAD_GESTION.includes(normalized)) {
+                invalidNovedadCount++;
+                continue; // Skip this record
             }
             updateData.NOVEDAD_EN_GESTION = normalized;
         }
@@ -603,12 +643,19 @@ export const updateManagementStatus = async (month, updates) => {
                 await update(child(salesRef, String(numero)), updateData);
                 summary.updated++;
             } else {
-                summary.errors.push(`Número no encontrado: ${numero} (No se permite crear)`);
+                notFoundCount++;
             }
         } catch (error) {
-            summary.errors.push(`Error ${numero}: ${error.message}`);
+            otherErrorsCount++;
         }
     }
+
+    // Generate Summary Errors
+    if (invalidNovedadCount > 0) summary.errors.push(`${invalidNovedadCount} registros no actualizados: NOVEDAD_EN_GESTION inválido (Permitidos: ${VALID_NOVEDAD_GESTION.join(', ')})`);
+    if (missingNumeroCount > 0) summary.errors.push(`${missingNumeroCount} filas ignoradas: Falta NÚMERO`);
+    if (notFoundCount > 0) summary.errors.push(`${notFoundCount} números no encontrados (No se permite crear)`);
+    if (otherErrorsCount > 0) summary.errors.push(`${otherErrorsCount} errores de sistema al actualizar`);
+
     return summary;
 };
 
@@ -704,6 +751,14 @@ export const updateGuides = async (month, updates) => {
 export const importSales = async (month, salesData) => {
     const summary = { added: 0, updated: 0, skipped: 0, errors: [] };
 
+    // Error summary counters
+    let invalidEstadoSimCount = 0;
+    let invalidTipoVentaCount = 0;
+    let invalidNovedadCount = 0;
+    let missingNumeroCount = 0;
+    let formatErrorCount = 0;
+    let otherErrorsCount = 0;
+
     if (!month || !salesData || salesData.length === 0) {
         throw new Error("Month and data are required.");
     }
@@ -716,21 +771,17 @@ export const importSales = async (month, salesData) => {
         try {
             // 1. Validar NUMERO Obligatorio
             if (!rawSale.NUMERO) {
-                summary.errors.push(`Fila sin NÚMERO: ${JSON.stringify(rawSale)}`);
+                missingNumeroCount++;
                 continue;
             }
 
             const numero = String(rawSale.NUMERO);
             if (!validateNumero(numero)) {
-                summary.errors.push(`Formato de NÚMERO inválido: ${numero}`);
+                formatErrorCount++;
                 continue;
             }
 
             // 2. Preparar objeto de datos limpio
-            // Mapeamos lo que venga del excel a nuestro esquema.
-            // Asumimos que los keys del objeto salesData ya vienen "limpios" (mapeados desde el excel en el frontend)
-            // O bien, normalizamos aquí. En este caso, asumiremos que el Frontend envía keys correctos (NUMERO, NOMBRE...)
-
             const saleToProcess = {
                 NUMERO: numero,
                 // Boolean conversion helpers
@@ -755,16 +806,28 @@ export const importSales = async (month, salesData) => {
                 DESCRIPCION_NOVEDAD: rawSale.DESCRIPCION_NOVEDAD || undefined
             };
 
+            // --- STRICT VALIDATION START --- //
+            if (saleToProcess.ESTADO_SIM !== undefined && !VALID_ESTADO_SIM.includes(saleToProcess.ESTADO_SIM)) {
+                invalidEstadoSimCount++;
+                continue;
+            }
+
+            if (saleToProcess.TIPO_VENTA !== undefined && !VALID_TIPO_VENTA.includes(saleToProcess.TIPO_VENTA)) {
+                invalidTipoVentaCount++;
+                continue;
+            }
+
+            if (saleToProcess.NOVEDAD_EN_GESTION !== undefined && !VALID_NOVEDAD_GESTION.includes(saleToProcess.NOVEDAD_EN_GESTION)) {
+                invalidNovedadCount++;
+                continue;
+            }
+            // --- STRICT VALIDATION END --- //
+
 
             // 3. Verificar existencia
             const snapshot = await get(child(salesRef, numero));
 
             if (snapshot.exists()) {
-                // UPDATE: Merge exististing data with new non-undefined data
-                // Remove undefined keys to avoid deleting existing data if we used 'set', 
-                // but for 'update' undefineds are ignored locally but good to be clean.
-                // Actually 'update' with undefined might throw or remove? Firebase js sdk ignores undefined usually.
-                // Let's filter undefineds just in case.
                 const updateData = {};
                 Object.keys(saleToProcess).forEach(key => {
                     if (saleToProcess[key] !== undefined && key !== 'NUMERO') {
@@ -780,9 +843,7 @@ export const importSales = async (month, salesData) => {
                 }
 
             } else {
-                // CREATE: Need defaults for mandatory fields if not present?
-                // Our schema is quite loose, basically everything is optional except NUMERO.
-                // We just save what we have.
+                // CREATE
                 const newSale = {
                     ...saleToProcess,
                     REGISTRO_SIM: saleToProcess.REGISTRO_SIM || false, // Default only strictly required logic
@@ -803,9 +864,17 @@ export const importSales = async (month, salesData) => {
 
         } catch (error) {
             console.error("Error importing sale:", error);
-            summary.errors.push(`Error en fila: ${JSON.stringify(rawSale)} - ${error.message}`);
+            otherErrorsCount++;
         }
     }
+
+    // Generate Summary Errors
+    if (invalidEstadoSimCount > 0) summary.errors.push(`${invalidEstadoSimCount} registros no procesados: ESTADO_SIM inválido`);
+    if (invalidTipoVentaCount > 0) summary.errors.push(`${invalidTipoVentaCount} registros no procesados: TIPO_VENTA inválido`);
+    if (invalidNovedadCount > 0) summary.errors.push(`${invalidNovedadCount} registros no procesados: NOVEDAD_EN_GESTION inválido`);
+    if (missingNumeroCount > 0) summary.errors.push(`${missingNumeroCount} filas ignoradas: Falta NÚMERO`);
+    if (formatErrorCount > 0) summary.errors.push(`${formatErrorCount} filas ignoradas: NÚMERO con formato inválido`);
+    if (otherErrorsCount > 0) summary.errors.push(`${otherErrorsCount} errores de sistema al procesar`);
 
     return summary;
 };
