@@ -255,7 +255,7 @@ export default function IncomeUpdate() {
 
     // Columns
     const columns = ['NUMERO', 'REGISTRO_SIM', 'FECHA_INGRESO', 'ICCID'];
-    const selectFields = ['REGISTRO_SIM'];
+    const selectFields = ['REGISTRO_SIM', 'FECHA_INGRESO'];
 
     const [filters, setFilters] = useState({ NUMERO: '', REGISTRO_SIM: '', FECHA_INGRESO: '', ICCID: '' });
     const [uniqueValues, setUniqueValues] = useState({});
@@ -497,7 +497,7 @@ export default function IncomeUpdate() {
 
                     <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
                         <button onClick={() => setShowFilters(!showFilters)} style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem', color: showFilters ? '#10b981' : '#60a5fa', background: 'transparent', border: 'none', cursor: 'pointer' }} title={showFilters ? 'Ocultar Filtros' : 'Mostrar Filtros'}>
-                            {showFilters ? '🔍' : '📊'}
+                            {showFilters ? 'Ocultar' : '🔍 Filtros'}
                         </button>
                         <button onClick={clearFilters} style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem', color: '#f87171', background: 'transparent', border: 'none', cursor: 'pointer' }}>Limpiar</button>
                     </div>

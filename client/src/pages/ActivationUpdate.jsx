@@ -20,9 +20,10 @@ export default function ActivationUpdate() {
 
     // Columns
     const columns = ['NUMERO', 'FECHA_ACTIVACION'];
-    const selectFields = []; // No selects here
+    const selectFields = ['FECHA_ACTIVACION'];
 
     const [filters, setFilters] = useState({ NUMERO: '', FECHA_ACTIVACION: '' });
+    const [uniqueValues, setUniqueValues] = useState({});
     const [showFilters, setShowFilters] = useState(false);
 
     // Modal
@@ -55,6 +56,17 @@ export default function ActivationUpdate() {
             setFilteredSales([]);
         }
     }, [month]);
+
+    useEffect(() => {
+        if (sales.length > 0) {
+            const unique = {};
+            selectFields.forEach(field => {
+                const values = [...new Set(sales.map(s => s[field]).filter(v => v !== null && v !== undefined && v !== ''))];
+                unique[field] = values.sort();
+            });
+            setUniqueValues(unique);
+        }
+    }, [sales]);
 
     useEffect(() => {
         let filtered = sales;
@@ -171,7 +183,7 @@ export default function ActivationUpdate() {
 
                     <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
                         <button onClick={() => setShowFilters(!showFilters)} style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem', color: showFilters ? '#10b981' : '#60a5fa', background: 'transparent', border: 'none', cursor: 'pointer' }} title={showFilters ? 'Ocultar Filtros' : 'Mostrar Filtros'}>
-                            {showFilters ? '🔍' : '📊'}
+                            {showFilters ? 'Ocultar' : '🔍 Filtros'}
                         </button>
                         <button onClick={clearFilters} style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem', color: '#f87171', background: 'transparent', border: 'none', cursor: 'pointer' }}>Limpiar</button>
                     </div>
@@ -189,7 +201,18 @@ export default function ActivationUpdate() {
                                     <th key={col} style={{ padding: '0.5rem', textAlign: 'left', minWidth: '100px' }}>
                                         <div style={{ marginBottom: showFilters ? '0.25rem' : '0' }}>{col.replace('_', ' ')}</div>
                                         {showFilters && (
-                                            <input value={filters[col]} onChange={(e) => handleFilterChange(col, e.target.value)} placeholder="..." style={{ width: '100%', padding: '0.2rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', borderRadius: '4px' }} />
+                                            selectFields.includes(col) ? (
+                                                <select
+                                                    value={filters[col]}
+                                                    onChange={(e) => handleFilterChange(col, e.target.value)}
+                                                    style={{ width: '100%', padding: '0.2rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', borderRadius: '4px' }}
+                                                >
+                                                    <option value="">Todos</option>
+                                                    {(uniqueValues[col] || []).map(val => <option key={val} value={val}>{val}</option>)}
+                                                </select>
+                                            ) : (
+                                                <input value={filters[col]} onChange={(e) => handleFilterChange(col, e.target.value)} placeholder="..." style={{ width: '100%', padding: '0.2rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', borderRadius: '4px' }} />
+                                            )
                                         )}
                                     </th>
                                 ))}
