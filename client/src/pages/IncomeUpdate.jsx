@@ -1,26 +1,230 @@
 import { useState, useEffect } from 'react';
 import { updateIncome, getAllMonths, listenToSalesByMonth } from '../services/SalesService';
+import { updateUserActivity } from '../services/UserService';
+import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import LoadingOverlay from '../components/LoadingOverlay';
 import { useZxing } from "react-zxing";
+
 import { BarcodeFormat, DecodeHintType } from "@zxing/library";
+import Tesseract from 'tesseract.js';
 
 // Internal Scanner Component
-const Scanner = ({ onScan, onClose }) => {
+const Scanner = ({ onScan, onClose, initialMode = 'barcode' }) => {
+    const [mode, setMode] = useState(initialMode); // 'barcode' | 'ocr'
+    const [ocrStatus, setOcrStatus] = useState('');
+    const [processing, setProcessing] = useState(false);
+
+    // Barcode Scanner Hook
     const { ref } = useZxing({
+        // Do NOT pause, otherwise the stream stops and the screen goes black
+        // We will just ignore the result in onResult if mode !== 'barcode'
         onResult(result) {
-            onScan(result.getText());
+            if (mode === 'barcode') onScan(result.getText());
         },
         options: {
             hints: new Map([
-                [DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128, BarcodeFormat.QR_CODE]]
+                [DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128, BarcodeFormat.QR_CODE, BarcodeFormat.EAN_13]]
             ])
+        },
+        constraints: {
+            video: {
+                facingMode: 'environment',
+                width: { ideal: 1920 },
+                height: { ideal: 1080 },
+                focusMode: 'continuous'
+            }
         }
     });
 
+    const [worker, setWorker] = useState(null);
+
+    // Initialize Tesseract Worker
+    useEffect(() => {
+        let active = true;
+        const initWorker = async () => {
+            try {
+                const w = await Tesseract.createWorker('eng');
+                await w.setParameters({
+                    tessedit_char_whitelist: '0123456789',
+                });
+                if (active) setWorker(w);
+                else w.terminate();
+            } catch (err) {
+                console.error("Worker Init Error", err);
+            }
+        };
+
+        if (mode === 'ocr' && !worker) {
+            initWorker();
+        }
+
+        return () => {
+            active = false;
+        };
+    }, [mode]);
+
+    // Cleanup worker on unmount or mode change (optional, but good for memory)
+    // We'll keep it simple: if we switch away from OCR, we can keep it for a bit or terminate.
+    // Let's terminate to save memory when not using OCR.
+    useEffect(() => {
+        if (mode !== 'ocr' && worker) {
+            worker.terminate();
+            setWorker(null);
+        }
+    }, [mode, worker]);
+
+    // OCR Loop
+    useEffect(() => {
+        let interval;
+        if (mode === 'ocr' && ref.current && worker) {
+            interval = setInterval(async () => {
+                if (processing) return;
+
+                const video = ref.current;
+                if (!video || !video.videoWidth) return;
+
+                setProcessing(true);
+                setOcrStatus('Analizando...');
+
+                try {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                    const { data: { text } } = await worker.recognize(canvas);
+
+                    // Look for ICCID pattern (18-22 digits)
+                    const match = text.match(/\b\d{18,22}\b/);
+
+                    if (match) {
+                        setOcrStatus('¡Encontrado!');
+                        onScan(match[0]);
+                    } else {
+                        setOcrStatus('Buscando números...');
+                    }
+
+                } catch (err) {
+                    console.error("OCR Error:", err);
+                    setOcrStatus('Error');
+                } finally {
+                    setProcessing(false);
+                }
+
+            }, 1000); // Check every 1s is responsive enough if worker is ready
+        }
+        return () => clearInterval(interval);
+    }, [mode, ref, processing, onScan, worker]);
+
+    const [zoom, setZoom] = useState(1);
+    const [maxZoom, setMaxZoom] = useState(1);
+    const [hasZoom, setHasZoom] = useState(false);
+    const [showControls, setShowControls] = useState(false);
+
+    // Initial stream setup to detect capabilities
+    useEffect(() => {
+        const video = ref.current;
+        if (!video) return;
+
+        const handleStream = () => {
+            if (!video.srcObject) return;
+            const track = video.srcObject.getVideoTracks()[0];
+            if (!track) return;
+
+            const capabilities = track.getCapabilities();
+            if (capabilities.zoom) {
+                setHasZoom(true);
+                setMaxZoom(capabilities.zoom.max);
+                setZoom(capabilities.zoom.min || 1);
+                setShowControls(true);
+            }
+        };
+
+        video.addEventListener('loadedmetadata', handleStream);
+        return () => video.removeEventListener('loadedmetadata', handleStream);
+    }, [ref]);
+
+    const handleZoomChange = async (e) => {
+        const newZoom = Number(e.target.value);
+        setZoom(newZoom);
+
+        const video = ref.current;
+        if (video && video.srcObject) {
+            const track = video.srcObject.getVideoTracks()[0];
+            if (track) {
+                try {
+                    await track.applyConstraints({ advanced: [{ zoom: newZoom }] });
+                } catch (err) {
+                    console.error("Zoom failed", err);
+                }
+            }
+        }
+    };
+
     return (
         <div style={{ marginBottom: '2rem', background: '#000', borderRadius: '8px', overflow: 'hidden', position: 'relative' }}>
-            <video ref={ref} style={{ width: '100%', display: 'block' }} />
+            <video ref={ref} style={{ width: '100%', display: 'block', filter: 'contrast(1.2) brightness(1.1)' }} />
+
+            {/* Visual Guide Overlay */}
+            <div style={{
+                position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                width: '80%', height: '150px',
+                border: '2px solid rgba(255, 0, 0, 0.7)',
+                boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.5)',
+                zIndex: 5,
+                pointerEvents: 'none',
+                borderRadius: '8px'
+            }}>
+                <div style={{ position: 'absolute', top: '-25px', left: 0, width: '100%', textAlign: 'center', color: '#fff', fontSize: '0.9rem', fontWeight: 'bold', textShadow: '1px 1px 2px black' }}>
+                    {mode === 'barcode' ? 'Centra el código aquí' : 'Centra el número ICCID aquí'}
+                </div>
+            </div>
+
+            <div style={{ position: 'absolute', top: '10px', left: '10px', display: 'flex', gap: '10px', zIndex: 10 }}>
+                <button
+                    onClick={() => setMode('barcode')}
+                    style={{
+                        background: mode === 'barcode' ? '#10b981' : 'rgba(0,0,0,0.5)',
+                        color: 'white', border: '1px solid white', padding: '0.4rem 0.8rem', borderRadius: '4px', fontSize: '0.8rem'
+                    }}>
+                    Barcode
+                </button>
+                <button
+                    onClick={() => setMode('ocr')}
+                    style={{
+                        background: mode === 'ocr' ? '#10b981' : 'rgba(0,0,0,0.5)',
+                        color: 'white', border: '1px solid white', padding: '0.4rem 0.8rem', borderRadius: '4px', fontSize: '0.8rem'
+                    }}>
+                    OCR (Texto)
+                </button>
+            </div>
+
+            {mode === 'ocr' && (
+                <div style={{ position: 'absolute', top: '60px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.6)', padding: '5px 10px', borderRadius: '4px', color: '#fbbf24', fontSize: '0.9rem', zIndex: 10 }}>
+                    {ocrStatus}
+                </div>
+            )}
+
+            {hasZoom && (
+                <div style={{ position: 'absolute', bottom: '50px', left: '10%', width: '80%', zIndex: 20 }}>
+                    <label style={{ color: 'white', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(0,0,0,0.5)', padding: '5px 10px', borderRadius: '20px' }}>
+                        <span>🔍 1x</span>
+                        <input
+                            type="range"
+                            min="1"
+                            max={maxZoom}
+                            step="0.1"
+                            value={zoom}
+                            onChange={handleZoomChange}
+                            style={{ flex: 1 }}
+                        />
+                        <span>{Math.round(maxZoom)}x</span>
+                    </label>
+                </div>
+            )}
+
             <button
                 onClick={onClose}
                 style={{ position: 'absolute', top: '10px', right: '10px', background: 'red', color: 'white', border: 'none', padding: '0.5rem', borderRadius: '4px', zIndex: 10 }}
@@ -28,13 +232,14 @@ const Scanner = ({ onScan, onClose }) => {
                 Cerrar
             </button>
             <p style={{ color: 'white', textAlign: 'center', padding: '0.5rem', position: 'absolute', bottom: 0, width: '100%', background: 'rgba(0,0,0,0.5)' }}>
-                Apuntando a Código de Barras (ICCID)
+                {mode === 'barcode' ? 'Apuntando a Código de Barras' : 'Apuntando a Número ICCID (Texto)'}
             </p>
         </div>
     );
 };
 
 export default function IncomeUpdate() {
+    const { currentUser } = useAuth();
     const [month, setMonth] = useState('');
     const [existingMonths, setExistingMonths] = useState([]);
 
@@ -60,6 +265,7 @@ export default function IncomeUpdate() {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editForm, setEditForm] = useState(null);
     const [isNewRecord, setIsNewRecord] = useState(false);
+    const [showFilters, setShowFilters] = useState(false);
 
     // Scan Result Modal State
     const [scanResult, setScanResult] = useState(null); // { found: bool, data: object, iccid: string }
@@ -73,8 +279,15 @@ export default function IncomeUpdate() {
         if (month) {
             setLoading(true);
             const unsubscribe = listenToSalesByMonth(month, (data) => {
-                setSales(data);
-                setFilteredSales(data);
+                // Sort by FECHA_INGRESO (oldest first)
+                const sortedData = [...data].sort((a, b) => {
+                    const dateA = a.FECHA_INGRESO ? new Date(a.FECHA_INGRESO + 'T00:00:00') : new Date(0);
+                    const dateB = b.FECHA_INGRESO ? new Date(b.FECHA_INGRESO + 'T00:00:00') : new Date(0);
+                    return dateA - dateB; // Ascending order (oldest first)
+                });
+
+                setSales(sortedData);
+                setFilteredSales(sortedData);
                 setLoading(false);
             });
             return () => unsubscribe();
@@ -160,6 +373,7 @@ export default function IncomeUpdate() {
         try {
             const res = await updateIncome(month, [payload]);
             setResult(res);
+            if (currentUser) updateUserActivity(currentUser.uid);
             setScanResult(null); // Close result modal
             // Automatically resume scanning after short delay if desired, or stay closed
         } catch (err) {
@@ -204,6 +418,7 @@ export default function IncomeUpdate() {
 
             const res = await updateIncome(month, [finalForm]);
             setResult(res);
+            if (currentUser) updateUserActivity(currentUser.uid);
             setIsEditModalOpen(false);
         } catch (err) {
             alert(err.message);
@@ -236,6 +451,7 @@ export default function IncomeUpdate() {
 
                 const res = await updateIncome(month, updates);
                 setResult(res);
+                if (currentUser) updateUserActivity(currentUser.uid);
             } catch (err) { alert(err.message); }
             setLoading(false);
         };
@@ -253,39 +469,37 @@ export default function IncomeUpdate() {
     };
 
     return (
-        <div className="container" style={{ padding: '1rem', maxWidth: '100%', height: 'calc(100vh - 80px)', display: 'flex', flexDirection: 'column' }}>
+        <div className="container" style={{ padding: '0.5rem', maxWidth: '100%', height: 'calc(100vh - 70px)', display: 'flex', flexDirection: 'column' }}>
             {loading && <LoadingOverlay />}
             <div className="glass-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                <div style={{ padding: '1rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                    <h2 style={{ fontSize: '1.25rem' }}>Actualizar Ingresos</h2>
-
-                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                {/* Header Compacto */}
+                <div style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <h2 style={{ fontSize: '0.85rem', margin: 0, fontWeight: '600', whiteSpace: 'nowrap' }}>Ingresos</h2>
                         <select
                             value={month}
                             onChange={e => setMonth(e.target.value)}
-                            style={{ padding: '0.5rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.2)', color: 'white', minWidth: '150px' }}
+                            style={{ padding: '0.25rem 0.4rem', fontSize: '0.75rem', minWidth: '110px', border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.2)', color: 'white', borderRadius: '4px' }}
                         >
-                            <option value="">-- Seleccionar Mes --</option>
+                            <option value="">Mes...</option>
                             {existingMonths.map(m => <option key={m}>{m}</option>)}
                         </select>
 
-
-                        <button onClick={() => { if (!month) return alert("Selecciona Mes"); setIsScanning(!isScanning); }} disabled={!month} className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', background: 'var(--accent)' }}>
-                            📷 {isScanning ? 'Cerrar Escáner' : 'Escanear'}
+                        <button onClick={() => { if (!month) return alert("Selecciona Mes"); setIsScanning(!isScanning); }} disabled={!month} className="btn-primary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', background: 'var(--accent)', whiteSpace: 'nowrap' }}>
+                            📷 {isScanning ? 'Cerrar' : 'Escanear'}
                         </button>
 
-                        <div style={{ position: 'relative', overflow: 'hidden', display: 'inline-block' }}>
-                            <button className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }} disabled={!month}>
-                                📤 Importar Excel
-                            </button>
-                            <input
-                                type="file"
-                                accept=".xlsx"
-                                onChange={handleFileUpload}
-                                disabled={!month}
-                                style={{ position: 'absolute', left: 0, top: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }}
-                            />
+                        <div style={{ position: 'relative', overflow: 'hidden', display: 'inline-block', flexShrink: 0 }}>
+                            <button className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', whiteSpace: 'nowrap' }} disabled={!month}>📤 Importar</button>
+                            <input type="file" accept=".xlsx" onChange={handleFileUpload} disabled={!month} style={{ position: 'absolute', left: 0, top: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
                         </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                        <button onClick={() => setShowFilters(!showFilters)} style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem', color: showFilters ? '#10b981' : '#60a5fa', background: 'transparent', border: 'none', cursor: 'pointer' }} title={showFilters ? 'Ocultar Filtros' : 'Mostrar Filtros'}>
+                            {showFilters ? '🔍' : '📊'}
+                        </button>
+                        <button onClick={clearFilters} style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem', color: '#f87171', background: 'transparent', border: 'none', cursor: 'pointer' }}>Limpiar</button>
                     </div>
                 </div>
 
@@ -328,129 +542,84 @@ export default function IncomeUpdate() {
                 )}
 
                 {result && (
-                    <div style={{ padding: '0.5rem 1rem', background: 'rgba(16, 185, 129, 0.1)', color: '#34d399', fontSize: '0.9rem' }}>
+                    <div style={{ padding: '0.3rem 0.5rem', background: 'rgba(16, 185, 129, 0.1)', color: '#34d399', fontSize: '0.75rem' }}>
                         Última operación: {result.updated} actualizados, {result.skipped} omitidos.
                     </div>
                 )}
 
-                <div style={{ padding: '0.5rem 1rem', display: 'flex', justifyContent: 'flex-end' }}>
-                    <button onClick={clearFilters} style={{ fontSize: '0.8rem', color: '#f87171', background: 'transparent', border: 'none', cursor: 'pointer' }}>Limpiar Filtros</button>
-                </div>
-
+                {/* Tabla */}
                 <div className="table-container" style={{ flex: 1, overflow: 'auto' }}>
-                    <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                    <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem' }}>
                         <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--card-bg)' }}>
                             <tr>
                                 {columns.map(col => (
-                                    <th key={col} style={{ padding: '0.75rem', textAlign: 'left', minWidth: '150px' }}>
-                                        <div style={{ marginBottom: '0.25rem' }}>{col.replace('_', ' ')}</div>
-                                        {selectFields.includes(col) ? (
-                                            <select
-                                                value={filters[col]}
-                                                onChange={(e) => handleFilterChange(col, e.target.value)}
-                                                style={{ width: '100%', padding: '0.2rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', borderRadius: '4px' }}
-                                            >
-                                                <option value="">Todos</option>
-                                                {(uniqueValues[col] || []).map(val => <option key={val} value={val}>{val === 'true' ? 'VERDADERO' : val === 'false' ? 'FALSO' : val}</option>)}
-                                            </select>
-                                        ) : (
-                                            <input value={filters[col]} onChange={(e) => handleFilterChange(col, e.target.value)} placeholder="..." style={{ width: '100%', padding: '0.2rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', borderRadius: '4px' }} />
+                                    <th key={col} style={{ padding: '0.5rem', textAlign: 'left', minWidth: '100px' }}>
+                                        <div style={{ marginBottom: showFilters ? '0.25rem' : '0' }}>{col.replace('_', ' ')}</div>
+                                        {showFilters && (
+                                            selectFields.includes(col) ? (
+                                                <select
+                                                    value={filters[col]}
+                                                    onChange={(e) => handleFilterChange(col, e.target.value)}
+                                                    style={{ width: '100%', padding: '0.2rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', borderRadius: '4px' }}
+                                                >
+                                                    <option value="">Todos</option>
+                                                    {(uniqueValues[col] || []).map(val => <option key={val} value={val}>{val === 'true' ? 'VERDADERO' : val === 'false' ? 'FALSO' : val}</option>)}
+                                                </select>
+                                            ) : (
+                                                <input value={filters[col]} onChange={(e) => handleFilterChange(col, e.target.value)} placeholder="..." style={{ width: '100%', padding: '0.2rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', borderRadius: '4px' }} />
+                                            )
                                         )}
                                     </th>
                                 ))}
                             </tr>
                         </thead>
                         <tbody>
-                            {currentItems.map((item, index) => (
-                                <tr
-                                    key={index}
-                                    onDoubleClick={() => handleEditClick(item)}
-                                    style={{
-                                        borderBottom: '1px solid rgba(255,255,255,0.05)',
-                                        cursor: 'pointer',
-                                        background: index % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent'
-                                    }}
-                                    className="table-row-hover"
-                                >
-                                    <td style={{ padding: '0.6rem' }}>{item.NUMERO}</td>
-                                    <td style={{ padding: '0.6rem' }}>{item.REGISTRO_SIM ? 'VERDADERO' : (item.REGISTRO_SIM === false ? 'FALSO' : '')}</td>
-                                    <td style={{ padding: '0.6rem' }}>{item.FECHA_INGRESO}</td>
-                                    <td style={{ padding: '0.6rem' }}>{item.ICCID}</td>
-                                </tr>
-                            ))}
+                            {loading ? (
+                                <tr><td colSpan={columns.length} style={{ textAlign: 'center', padding: '1rem' }}>Cargando datos...</td></tr>
+                            ) : currentItems.length === 0 ? (
+                                <tr><td colSpan={columns.length} style={{ textAlign: 'center', padding: '1rem' }}>No se encontraron registros.</td></tr>
+                            ) : (
+                                currentItems.map((item, index) => (
+                                    <tr
+                                        key={index}
+                                        onDoubleClick={() => handleEditClick(item)}
+                                        style={{ borderBottom: '1px solid var(--glass-border)', cursor: 'pointer' }}
+                                        className="hover-row"
+                                    >
+                                        <td style={{ padding: '0.5rem' }}>{item.NUMERO}</td>
+                                        <td style={{ padding: '0.5rem' }}>{item.REGISTRO_SIM ? 'VERDADERO' : (item.REGISTRO_SIM === false ? 'FALSO' : '')}</td>
+                                        <td style={{ padding: '0.5rem' }}>{item.FECHA_INGRESO}</td>
+                                        <td style={{ padding: '0.5rem' }}>{item.ICCID}</td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </div>
 
-                {/* Pagination Controls */}
-                {filteredSales.length > 0 && (
-                    <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '1rem',
-                        borderTop: '1px solid var(--glass-border)',
-                        background: 'var(--bg-secondary)'
-                    }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                            <span>Filas por página:</span>
-                            <select
-                                value={itemsPerPage}
-                                onChange={(e) => {
-                                    setItemsPerPage(Number(e.target.value));
-                                    setCurrentPage(1);
-                                }}
-                                style={{
-                                    padding: '0.2rem',
-                                    fontSize: '0.8rem',
-                                    borderRadius: '4px',
-                                    border: '1px solid var(--glass-border)',
-                                    background: 'var(--bg-card)',
-                                    color: 'white'
-                                }}
-                            >
-                                <option value={50}>50</option>
-                                <option value={100}>100</option>
-                                <option value={200}>200</option>
-                                <option value={500}>500</option>
-                            </select>
-                            <span>Página {currentPage} de {totalPages || 1} ({filteredSales.length} registros)</span>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <button
-                                onClick={() => handlePageChange(currentPage - 1)}
-                                disabled={currentPage === 1}
-                                className="btn-secondary"
-                                style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', opacity: currentPage === 1 ? 0.5 : 1 }}
-                            >
-                                Anterior
-                            </button>
-                            <button
-                                onClick={() => handlePageChange(currentPage + 1)}
-                                disabled={currentPage === totalPages}
-                                className="btn-secondary"
-                                style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', opacity: currentPage === totalPages ? 0.5 : 1 }}
-                            >
-                                Siguiente
-                            </button>
-                        </div>
+                {/* Pagination Compact */}
+                <div style={{ padding: '0.5rem', borderTop: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
+                    <span>{filteredSales.length} registros</span>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}>Anterior</button>
+                        <span style={{ padding: '0.3rem 0.6rem' }}>{currentPage} / {totalPages || 1}</span>
+                        <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}>Siguiente</button>
                     </div>
-                )}
+                </div>
             </div>
 
             {/* Edit Modal */}
             {isEditModalOpen && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <div className="glass-panel" style={{ width: '400px', padding: '2rem' }}>
-                        <h3 style={{ marginBottom: '1.5rem' }}>{isNewRecord ? 'Nuevo Registro' : 'Editar Registro'}</h3>
+                        <h3 style={{ marginBottom: '1.5rem', fontSize: '1.1rem' }}>{isNewRecord ? 'Nuevo Registro' : 'Editar Registro'}</h3>
                         <form onSubmit={handleSave}>
                             <div style={{ marginBottom: '1rem' }}>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Número</label>
+                                <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.8rem' }}>Número</label>
                                 <input required value={editForm.NUMERO} onChange={e => setEditForm({ ...editForm, NUMERO: e.target.value })} style={{ width: '100%', padding: '0.5rem' }} disabled={!isNewRecord} />
                             </div>
                             <div style={{ marginBottom: '1rem' }}>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Registro SIM</label>
+                                <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.8rem' }}>Registro SIM</label>
                                 <select
                                     value={editForm.REGISTRO_SIM === true ? 'true' : editForm.REGISTRO_SIM === false ? 'false' : ''}
                                     onChange={e => setEditForm({ ...editForm, REGISTRO_SIM: e.target.value })}
@@ -462,11 +631,11 @@ export default function IncomeUpdate() {
                                 </select>
                             </div>
                             <div style={{ marginBottom: '1rem' }}>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Fecha Ingreso</label>
+                                <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.8rem' }}>Fecha Ingreso</label>
                                 <input type="date" value={editForm.FECHA_INGRESO || ''} onChange={e => setEditForm({ ...editForm, FECHA_INGRESO: e.target.value })} style={{ width: '100%', padding: '0.5rem' }} />
                             </div>
                             <div style={{ marginBottom: '1.5rem' }}>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>ICCID</label>
+                                <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.8rem' }}>ICCID</label>
                                 <input value={editForm.ICCID || ''} onChange={e => setEditForm({ ...editForm, ICCID: e.target.value })} style={{ width: '100%', padding: '0.5rem' }} />
                             </div>
                             <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>

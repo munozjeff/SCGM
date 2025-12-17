@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { updateActivationDate, getAllMonths, listenToSalesByMonth } from '../services/SalesService';
+import { updateUserActivity } from '../services/UserService';
+import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import LoadingOverlay from '../components/LoadingOverlay';
 
 export default function ActivationUpdate() {
+    const { currentUser } = useAuth();
     const [month, setMonth] = useState('');
     const [existingMonths, setExistingMonths] = useState([]);
     const [sales, setSales] = useState([]);
@@ -20,6 +23,7 @@ export default function ActivationUpdate() {
     const selectFields = []; // No selects here
 
     const [filters, setFilters] = useState({ NUMERO: '', FECHA_ACTIVACION: '' });
+    const [showFilters, setShowFilters] = useState(false);
 
     // Modal
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -34,8 +38,15 @@ export default function ActivationUpdate() {
         if (month) {
             setLoading(true);
             const unsubscribe = listenToSalesByMonth(month, (data) => {
-                setSales(data);
-                setFilteredSales(data);
+                // Sort by FECHA_INGRESO (oldest first)
+                const sortedData = [...data].sort((a, b) => {
+                    const dateA = a.FECHA_INGRESO ? new Date(a.FECHA_INGRESO + 'T00:00:00') : new Date(0);
+                    const dateB = b.FECHA_INGRESO ? new Date(b.FECHA_INGRESO + 'T00:00:00') : new Date(0);
+                    return dateA - dateB; // Ascending order (oldest first)
+                });
+
+                setSales(sortedData);
+                setFilteredSales(sortedData);
                 setLoading(false);
             });
             return () => unsubscribe();
@@ -84,6 +95,7 @@ export default function ActivationUpdate() {
         try {
             const res = await updateActivationDate(month, [editForm]);
             setResult(res);
+            if (currentUser) updateUserActivity(currentUser.uid);
             setIsEditModalOpen(false);
         } catch (err) { alert(err.message); }
         setLoading(false);
@@ -117,6 +129,7 @@ export default function ActivationUpdate() {
 
                 const res = await updateActivationDate(month, updates);
                 setResult(res);
+                if (currentUser) updateUserActivity(currentUser.uid);
             } catch (err) { alert(err.message); }
             setLoading(false);
         };
@@ -134,121 +147,94 @@ export default function ActivationUpdate() {
     };
 
     return (
-        <div className="container" style={{ padding: '1rem', maxWidth: '100%', height: 'calc(100vh - 80px)', display: 'flex', flexDirection: 'column' }}>
+        <div className="container" style={{ padding: '0.5rem', maxWidth: '100%', height: 'calc(100vh - 70px)', display: 'flex', flexDirection: 'column' }}>
             {loading && <LoadingOverlay />}
             <div className="glass-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                <div style={{ padding: '1rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                    <h2 style={{ fontSize: '1.25rem' }}>Actualizar Fecha Activación</h2>
-                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <select value={month} onChange={e => setMonth(e.target.value)} style={{ padding: '0.5rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.2)', color: 'white', minWidth: '150px' }}>
-                            <option value="">-- Seleccionar Mes --</option>
+                {/* Header Compacto */}
+                <div style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <h2 style={{ fontSize: '0.85rem', margin: 0, fontWeight: '600', whiteSpace: 'nowrap' }}>Activación</h2>
+                        <select
+                            value={month}
+                            onChange={e => setMonth(e.target.value)}
+                            style={{ padding: '0.25rem 0.4rem', fontSize: '0.75rem', minWidth: '110px', border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.2)', color: 'white', borderRadius: '4px' }}
+                        >
+                            <option value="">Mes...</option>
                             {existingMonths.map(m => <option key={m}>{m}</option>)}
                         </select>
 
-                        <div style={{ position: 'relative', overflow: 'hidden', display: 'inline-block' }}>
-                            <button className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }} disabled={!month}>📤 Importar Excel</button>
+                        <div style={{ position: 'relative', overflow: 'hidden', display: 'inline-block', flexShrink: 0 }}>
+                            <button className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', whiteSpace: 'nowrap' }} disabled={!month}>📤 Importar</button>
                             <input type="file" accept=".xlsx" onChange={handleFileUpload} disabled={!month} style={{ position: 'absolute', left: 0, top: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
                         </div>
                     </div>
+
+                    <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                        <button onClick={() => setShowFilters(!showFilters)} style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem', color: showFilters ? '#10b981' : '#60a5fa', background: 'transparent', border: 'none', cursor: 'pointer' }} title={showFilters ? 'Ocultar Filtros' : 'Mostrar Filtros'}>
+                            {showFilters ? '🔍' : '📊'}
+                        </button>
+                        <button onClick={clearFilters} style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem', color: '#f87171', background: 'transparent', border: 'none', cursor: 'pointer' }}>Limpiar</button>
+                    </div>
                 </div>
 
-                {result && <div style={{ padding: '0.5rem 1rem', background: 'rgba(16, 185, 129, 0.1)', color: '#34d399', fontSize: '0.9rem' }}>Última operación: {result.updated} actualizados, {result.skipped} omitidos.</div>}
+                {/* Resultado */}
+                {result && <div style={{ padding: '0.3rem 0.5rem', background: 'rgba(16, 185, 129, 0.1)', color: '#34d399', fontSize: '0.75rem' }}>Última operación: {result.updated} actualizados, {result.skipped} omitidos.</div>}
 
-                <div style={{ padding: '0.5rem 1rem', display: 'flex', justifyContent: 'flex-end' }}>
-                    <button onClick={clearFilters} style={{ fontSize: '0.8rem', color: '#f87171', background: 'transparent', border: 'none', cursor: 'pointer' }}>Limpiar Filtros</button>
-                </div>
-
+                {/* Tabla */}
                 <div className="table-container" style={{ flex: 1, overflow: 'auto' }}>
-                    <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                    <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem' }}>
                         <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--card-bg)' }}>
                             <tr>
                                 {columns.map(col => (
-                                    <th key={col} style={{ padding: '0.75rem', textAlign: 'left', minWidth: '150px' }}>
-                                        <div style={{ marginBottom: '0.25rem' }}>{col.replace('_', ' ')}</div>
-                                        <input value={filters[col]} onChange={(e) => handleFilterChange(col, e.target.value)} placeholder="..." style={{ width: '100%', padding: '0.2rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', borderRadius: '4px' }} />
+                                    <th key={col} style={{ padding: '0.5rem', textAlign: 'left', minWidth: '100px' }}>
+                                        <div style={{ marginBottom: showFilters ? '0.25rem' : '0' }}>{col.replace('_', ' ')}</div>
+                                        {showFilters && (
+                                            <input value={filters[col]} onChange={(e) => handleFilterChange(col, e.target.value)} placeholder="..." style={{ width: '100%', padding: '0.2rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', borderRadius: '4px' }} />
+                                        )}
                                     </th>
                                 ))}
                             </tr>
                         </thead>
                         <tbody>
-                            {currentItems.map((item, index) => (
-                                <tr key={index} onDoubleClick={() => handleEditClick(item)} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', background: index % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }} className="table-row-hover">
-                                    <td style={{ padding: '0.6rem' }}>{item.NUMERO}</td>
-                                    <td style={{ padding: '0.6rem' }}>{item.FECHA_ACTIVACION}</td>
-                                </tr>
-                            ))}
+                            {loading ? (
+                                <tr><td colSpan={columns.length} style={{ textAlign: 'center', padding: '1rem' }}>Cargando...</td></tr>
+                            ) : currentItems.length === 0 ? (
+                                <tr><td colSpan={columns.length} style={{ textAlign: 'center', padding: '1rem' }}>No se encontraron registros.</td></tr>
+                            ) : (
+                                currentItems.map((item, index) => (
+                                    <tr key={index} onDoubleClick={() => handleEditClick(item)} style={{ borderBottom: '1px solid var(--glass-border)', cursor: 'pointer' }} className="hover-row">
+                                        <td style={{ padding: '0.5rem' }}>{item.NUMERO}</td>
+                                        <td style={{ padding: '0.5rem' }}>{item.FECHA_ACTIVACION}</td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </div>
 
-                {/* Pagination Controls */}
-                {filteredSales.length > 0 && (
-                    <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '1rem',
-                        borderTop: '1px solid var(--glass-border)',
-                        background: 'var(--bg-secondary)'
-                    }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                            <span>Filas por página:</span>
-                            <select
-                                value={itemsPerPage}
-                                onChange={(e) => {
-                                    setItemsPerPage(Number(e.target.value));
-                                    setCurrentPage(1);
-                                }}
-                                style={{
-                                    padding: '0.2rem',
-                                    fontSize: '0.8rem',
-                                    borderRadius: '4px',
-                                    border: '1px solid var(--glass-border)',
-                                    background: 'var(--bg-card)',
-                                    color: 'white'
-                                }}
-                            >
-                                <option value={50}>50</option>
-                                <option value={100}>100</option>
-                                <option value={200}>200</option>
-                                <option value={500}>500</option>
-                            </select>
-                            <span>Página {currentPage} de {totalPages || 1} ({filteredSales.length} registros)</span>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <button
-                                onClick={() => handlePageChange(currentPage - 1)}
-                                disabled={currentPage === 1}
-                                className="btn-secondary"
-                                style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', opacity: currentPage === 1 ? 0.5 : 1 }}
-                            >
-                                Anterior
-                            </button>
-                            <button
-                                onClick={() => handlePageChange(currentPage + 1)}
-                                disabled={currentPage === totalPages}
-                                className="btn-secondary"
-                                style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', opacity: currentPage === totalPages ? 0.5 : 1 }}
-                            >
-                                Siguiente
-                            </button>
-                        </div>
+                {/* Paginación Compacta */}
+                <div style={{ padding: '0.5rem', borderTop: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
+                    <span>{filteredSales.length} registros</span>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}>Anterior</button>
+                        <span style={{ padding: '0.3rem 0.6rem' }}>{currentPage} / {totalPages || 1}</span>
+                        <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}>Siguiente</button>
                     </div>
-                )}
+                </div>
             </div>
 
+            {/* Modal */}
             {isEditModalOpen && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <div className="glass-panel" style={{ width: '400px', padding: '2rem' }}>
-                        <h3 style={{ marginBottom: '1.5rem' }}>{isNewRecord ? 'Nuevo Registro' : 'Editar Fecha'}</h3>
+                        <h3 style={{ marginBottom: '1.5rem', fontSize: '1.1rem' }}>{isNewRecord ? 'Nuevo Registro' : 'Editar Fecha'}</h3>
                         <form onSubmit={handleSave}>
                             <div style={{ marginBottom: '1rem' }}>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Número</label>
+                                <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.8rem' }}>Número</label>
                                 <input required value={editForm.NUMERO} onChange={e => setEditForm({ ...editForm, NUMERO: e.target.value })} style={{ width: '100%', padding: '0.5rem' }} disabled={!isNewRecord} />
                             </div>
                             <div style={{ marginBottom: '1.5rem' }}>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Fecha Activación</label>
+                                <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.8rem' }}>Fecha Activación</label>
                                 <input type="date" value={editForm.FECHA_ACTIVACION || ''} onChange={e => setEditForm({ ...editForm, FECHA_ACTIVACION: e.target.value })} style={{ width: '100%', padding: '0.5rem' }} />
                             </div>
                             <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>

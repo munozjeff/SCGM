@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { store } from './store/store';
 import { checkAuthState } from './store/slices/authSlice';
+import { AuthProvider } from './contexts/AuthContext';
 import MainLayout from './layouts/MainLayout';
 import UserLayout from './layouts/UserLayout';
 import RoleBasedRedirect from './components/RoleBasedRedirect';
@@ -90,7 +91,9 @@ function AppContent() {
 function App() {
   return (
     <Provider store={store}>
-      <AppContent />
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </Provider>
   );
 }

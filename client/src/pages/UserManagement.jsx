@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { createUser, getAllUsers, updateUserRole, deleteUserData } from '../services/UserService';
+import { createUser, getAllUsers, updateUserRole, deleteUserData, listenToAllUsers } from '../services/UserService';
 
 export default function UserManagement() {
     const [users, setUsers] = useState([]);
@@ -18,22 +18,15 @@ export default function UserManagement() {
     });
     const [message, setMessage] = useState({ type: '', text: '' });
 
-    // Cargar usuarios al montar
+    // Cargar usuarios en tiempo real
     useEffect(() => {
-        loadUsers();
-    }, []);
-
-    const loadUsers = async () => {
-        try {
-            setLoading(true);
-            const usersList = await getAllUsers();
+        setLoading(true);
+        const unsubscribe = listenToAllUsers((usersList) => {
             setUsers(usersList);
-        } catch {
-            setMessage({ type: 'error', text: 'Error al cargar usuarios' });
-        } finally {
             setLoading(false);
-        }
-    };
+        });
+        return () => unsubscribe();
+    }, []);
 
     const handleCreateUser = async (e) => {
         e.preventDefault();
@@ -45,7 +38,9 @@ export default function UserManagement() {
             setMessage({ type: 'success', text: `Usuario ${newUser.email} creado exitosamente` });
             setNewUser({ email: '', password: '', role: 'user' });
             setShowCreateForm(false);
-            loadUsers();
+            setNewUser({ email: '', password: '', role: 'user' });
+            setShowCreateForm(false);
+            // loadUsers() ya no es necesario, el listener actualizará la lista
             setCurrentPage(1);
         } catch (error) {
             setMessage({ type: 'error', text: error.message || 'Error al crear usuario' });
@@ -59,7 +54,7 @@ export default function UserManagement() {
         try {
             await updateUserRole(uid, newRole);
             setMessage({ type: 'success', text: 'Rol actualizado' });
-            loadUsers();
+            setMessage({ type: 'success', text: 'Rol actualizado' });
         } catch {
             setMessage({ type: 'error', text: 'Error al cambiar rol' });
         }
@@ -71,7 +66,7 @@ export default function UserManagement() {
         try {
             await deleteUserData(uid);
             setMessage({ type: 'success', text: 'Usuario eliminado' });
-            loadUsers();
+            setMessage({ type: 'success', text: 'Usuario eliminado' });
         } catch {
             setMessage({ type: 'error', text: 'Error al eliminar usuario' });
         }
@@ -85,6 +80,22 @@ export default function UserManagement() {
 
     const handlePageChange = (newPage) => {
         if (newPage >= 1 && newPage <= totalPages) setCurrentPage(newPage);
+    };
+
+    // Helper for relative time
+    const timeAgo = (dateString) => {
+        if (!dateString) return 'Nunca';
+        const date = new Date(dateString);
+        const now = new Date();
+        const seconds = Math.floor((now - date) / 1000);
+
+        if (seconds < 60) return 'Hace unos segundos';
+        const minutes = Math.floor(seconds / 60);
+        if (minutes < 60) return `Hace ${minutes} min`;
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `Hace ${hours} horas`;
+        const days = Math.floor(hours / 24);
+        return `Hace ${days} días`;
     };
 
     return (
@@ -169,6 +180,9 @@ export default function UserManagement() {
                                     <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                                         Rol: <span style={{ color: user.role === 'admin' ? 'var(--primary)' : 'var(--text-main)' }}>{user.role}</span>
                                     </div>
+                                    <div style={{ marginTop: '0.5rem', display: 'inline-block', padding: '0.25rem 0.5rem', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '4px', fontSize: '0.8rem' }}>
+                                        🕒 Última actividad: <span style={{ color: '#4ade80', fontWeight: 'bold' }}>{timeAgo(user.lastActive)}</span>
+                                    </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                                     <button
@@ -203,6 +217,7 @@ export default function UserManagement() {
                             </div>
                         ))}
                     </div>
+
 
                     {/* Pagination Controls */}
                     {users.length > 0 && (

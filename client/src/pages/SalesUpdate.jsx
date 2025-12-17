@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { addSales, getAllMonths } from '../services/SalesService';
+import { updateUserActivity } from '../services/UserService';
+import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import LoadingOverlay from '../components/LoadingOverlay';
 
 export default function SalesUpdate() {
+    const { currentUser } = useAuth();
     const [month, setMonth] = useState("");
     const [isNewMonth, setIsNewMonth] = useState(false);
     const [newMonthName, setNewMonthName] = useState("");
@@ -74,6 +77,7 @@ export default function SalesUpdate() {
 
             setResult(res);
             if (res.added > 0) {
+                if (currentUser) updateUserActivity(currentUser.uid);
                 setFormData({ NUMERO: '', ICCID: '' });
                 if (isNewMonth) loadMonths();
             }
@@ -111,6 +115,7 @@ export default function SalesUpdate() {
             const res = await addSales(targetMonth, sales);
             setResult(res);
             if (res.added > 0) {
+                if (currentUser) updateUserActivity(currentUser.uid);
                 setBulkText("");
                 if (isNewMonth) loadMonths();
             }

@@ -71,7 +71,7 @@ export default function MainLayout() {
                     }}
                     title={isSidebarCollapsed ? 'Expandir menú' : 'Colapsar menú'}
                 >
-                    {isSidebarCollapsed ? '→' : '←'}
+                    {isSidebarCollapsed ? <span>→</span> : <span>←</span>}
                 </button>
 
                 <div className="logo" style={{
@@ -83,7 +83,7 @@ export default function MainLayout() {
                     textAlign: isSidebarCollapsed ? 'center' : 'left',
                     borderBottom: '1px solid var(--glass-border)'
                 }}>
-                    {isSidebarCollapsed ? 'SC' : 'SCGM'}
+                    {isSidebarCollapsed ? <span>SC</span> : <span>SCGM</span>}
                 </div>
 
                 <nav style={{
@@ -95,40 +95,52 @@ export default function MainLayout() {
                     overflowY: 'auto'
                 }}>
                     <Link to="/admin" className="nav-link" onClick={handleNavClick} title="Dashboard">
-                        <span style={{ marginRight: '0.5rem' }}>📊</span> {!isSidebarCollapsed && 'Dashboard'}
+                        <span style={{ marginRight: isSidebarCollapsed ? 0 : '0.5rem', display: 'flex', justifyContent: 'center', minWidth: '24px' }}>📊</span>
+                        {!isSidebarCollapsed && <span>Dashboard</span>}
                     </Link>
                     <Link to="/admin/sales/update" className="nav-link" onClick={handleNavClick} title="Ventas">
-                        <span style={{ marginRight: '0.5rem' }}>➕</span> {!isSidebarCollapsed && 'Actualizar Ventas'}
+                        <span style={{ marginRight: isSidebarCollapsed ? 0 : '0.5rem', display: 'flex', justifyContent: 'center', minWidth: '24px' }}>➕</span>
+                        {!isSidebarCollapsed && <span>Actualizar Ventas</span>}
                     </Link>
                     <Link to="/admin/income/update" className="nav-link" onClick={handleNavClick} title="Ingresos">
-                        <span style={{ marginRight: '0.5rem' }}>💰</span> {!isSidebarCollapsed && 'Actualizar Ingresos'}
+                        <span style={{ marginRight: isSidebarCollapsed ? 0 : '0.5rem', display: 'flex', justifyContent: 'center', minWidth: '24px' }}>💰</span>
+                        {!isSidebarCollapsed && <span>Actualizar Ingresos</span>}
                     </Link>
                     <Link to="/admin/client/update" className="nav-link" onClick={handleNavClick} title="Cliente">
-                        <span style={{ marginRight: '0.5rem' }}>👤</span> {!isSidebarCollapsed && 'Actualizar Cliente'}
+                        <span style={{ marginRight: isSidebarCollapsed ? 0 : '0.5rem', display: 'flex', justifyContent: 'center', minWidth: '24px' }}>👤</span>
+                        {!isSidebarCollapsed && <span>Actualizar Cliente</span>}
                     </Link>
                     <Link to="/admin/activation/update" className="nav-link" onClick={handleNavClick} title="Activación">
-                        <span style={{ marginRight: '0.5rem' }}>📅</span> {!isSidebarCollapsed && 'Actualizar F. Activación'}
+                        <span style={{ marginRight: isSidebarCollapsed ? 0 : '0.5rem', display: 'flex', justifyContent: 'center', minWidth: '24px' }}>📅</span>
+                        {!isSidebarCollapsed && <span>Actualizar F. Activación</span>}
                     </Link>
                     <Link to="/admin/sim/update" className="nav-link" onClick={handleNavClick} title="Estado SIM">
-                        <span style={{ marginRight: '0.5rem' }}>📶</span> {!isSidebarCollapsed && 'Actualizar Estado SIM'}
+                        <span style={{ marginRight: isSidebarCollapsed ? 0 : '0.5rem', display: 'flex', justifyContent: 'center', minWidth: '24px' }}>📶</span>
+                        {!isSidebarCollapsed && <span>Actualizar Estado SIM</span>}
                     </Link>
                     <Link to="/admin/sales-type/update" className="nav-link" onClick={handleNavClick} title="Tipo Venta">
-                        <span style={{ marginRight: '0.5rem' }}>🏷️</span> {!isSidebarCollapsed && 'Actualizar Tipo Venta'}
+                        <span style={{ marginRight: isSidebarCollapsed ? 0 : '0.5rem', display: 'flex', justifyContent: 'center', minWidth: '24px' }}>🏷️</span>
+                        {!isSidebarCollapsed && <span>Actualizar Tipo Venta</span>}
                     </Link>
                     <Link to="/admin/management/update" className="nav-link" onClick={handleNavClick} title="Gestión">
-                        <span style={{ marginRight: '0.5rem' }}>🔔</span> {!isSidebarCollapsed && 'Actualizar Novedad Gestión'}
+                        <span style={{ marginRight: isSidebarCollapsed ? 0 : '0.5rem', display: 'flex', justifyContent: 'center', minWidth: '24px' }}>🔔</span>
+                        {!isSidebarCollapsed && <span>Actualizar Novedad Gestión</span>}
                     </Link>
                     <Link to="/admin/portfolio/update" className="nav-link" onClick={handleNavClick} title="Cartera">
-                        <span style={{ marginRight: '0.5rem' }}>💼</span> {!isSidebarCollapsed && 'Actualizar Cartera'}
+                        <span style={{ marginRight: isSidebarCollapsed ? 0 : '0.5rem', display: 'flex', justifyContent: 'center', minWidth: '24px' }}>💼</span>
+                        {!isSidebarCollapsed && <span>Actualizar Cartera</span>}
                     </Link>
                     <Link to="/admin/guides/update" className="nav-link" onClick={handleNavClick} title="Guías">
-                        <span style={{ marginRight: '0.5rem' }}>🚚</span> {!isSidebarCollapsed && 'Actualizar Guías'}
+                        <span style={{ marginRight: isSidebarCollapsed ? 0 : '0.5rem', display: 'flex', justifyContent: 'center', minWidth: '24px' }}>🚚</span>
+                        {!isSidebarCollapsed && <span>Actualizar Guías</span>}
                     </Link>
                     <Link to="/admin/database" className="nav-link" onClick={handleNavClick} title="BD">
-                        <span style={{ marginRight: '0.5rem' }}>📋</span> {!isSidebarCollapsed && 'Base de Datos'}
+                        <span style={{ marginRight: isSidebarCollapsed ? 0 : '0.5rem', display: 'flex', justifyContent: 'center', minWidth: '24px' }}>📋</span>
+                        {!isSidebarCollapsed && <span>Base de Datos</span>}
                     </Link>
                     <Link to="/admin/users" className="nav-link" onClick={handleNavClick} title="Usuarios">
-                        <span style={{ marginRight: '0.5rem' }}>👥</span> {!isSidebarCollapsed && 'Gestionar Usuarios'}
+                        <span style={{ marginRight: isSidebarCollapsed ? 0 : '0.5rem', display: 'flex', justifyContent: 'center', minWidth: '24px' }}>👥</span>
+                        {!isSidebarCollapsed && <span>Gestionar Usuarios</span>}
                     </Link>
                 </nav>
 
@@ -155,7 +167,7 @@ export default function MainLayout() {
                             transition: 'all 0.2s'
                         }}
                     >
-                        <span style={{ marginRight: isSidebarCollapsed ? '0' : '0.5rem' }}>🚪</span> {!isSidebarCollapsed && 'Cerrar Sesión'}
+                        <span style={{ marginRight: isSidebarCollapsed ? '0' : '0.5rem' }}>🚪</span> {!isSidebarCollapsed && <span>Cerrar Sesión</span>}
                     </button>
                 </div>
             </aside>
@@ -170,12 +182,15 @@ export default function MainLayout() {
                 .nav-link {
                     display: flex;
                     align-items: center;
-                    justify-content: ${isSidebarCollapsed ? 'center' : 'flex-start'};
+                    justify-content: flex-start;
                     padding: 0.75rem;
                     color: var(--text-muted);
                     text-decoration: none;
                     border-radius: var(--radius-md);
                     transition: all 0.2s;
+                }
+                 .sidebar.collapsed .nav-link {
+                    justify-content: center;
                 }
                 .nav-link:hover {
                     background: rgba(255, 255, 255, 0.05);

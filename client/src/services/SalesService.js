@@ -247,7 +247,10 @@ export const addSales = async (month, sales) => {
 /**
  * Obtiene todas las ventas de un mes específico
  */
-export const getSalesByMonth = async (month) => {
+/**
+ * Obtiene todas las ventas de un mes específico
+ */
+export const getSalesByMonth = async (month, sortStrategy = 'FECHA_INGRESO_ASC') => {
     try {
         const snapshot = await get(ref(db, `months/${month}/sales`));
         if (snapshot.exists()) {
@@ -256,9 +259,17 @@ export const getSalesByMonth = async (month) => {
                 NUMERO: numero,
                 ...salesData[numero]
             })).sort((a, b) => {
-                const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
-                const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
-                return dateB - dateA; // Descending
+                if (sortStrategy === 'CREATED_DESC') {
+                    // Original behavior
+                    const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+                    const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+                    return dateB - dateA;
+                } else {
+                    // New default: Ascending by FECHA_INGRESO
+                    const dateA = a.FECHA_INGRESO ? new Date(a.FECHA_INGRESO) : new Date(8640000000000000);
+                    const dateB = b.FECHA_INGRESO ? new Date(b.FECHA_INGRESO) : new Date(8640000000000000);
+                    return dateA - dateB;
+                }
             });
         }
         return [];
@@ -288,9 +299,10 @@ export const getAllMonths = async () => {
  * Escucha cambios en tiempo real de las ventas de un mes específico
  * @param {string} month - Mes a escuchar
  * @param {Function} callback - Función que recibe los datos actualizados
+ * @param {string} sortStrategy - 'FECHA_INGRESO_ASC' (default) | 'CREATED_DESC' (original)
  * @returns {Function} - Función para detener el listener (cleanup)
  */
-export const listenToSalesByMonth = (month, callback) => {
+export const listenToSalesByMonth = (month, callback, sortStrategy = 'FECHA_INGRESO_ASC') => {
     const salesRef = ref(db, `months/${month}/sales`);
 
     const unsubscribe = onValue(salesRef, (snapshot) => {
@@ -300,9 +312,20 @@ export const listenToSalesByMonth = (month, callback) => {
                 NUMERO: numero,
                 ...salesData[numero]
             })).sort((a, b) => {
-                const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
-                const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
-                return dateB - dateA; // Descending
+                if (sortStrategy === 'CREATED_DESC') {
+                    // Original behavior: Descending by createdAt
+                    const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+                    const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+                    return dateB - dateA;
+                } else {
+                    // New default: Ascending by FECHA_INGRESO
+                    // Handle missing dates by placing them at the end (or start?). 
+                    // Usually oldest first means items with dates come first in chronological order.
+                    // Items without dates should probably be last?
+                    const dateA = a.FECHA_INGRESO ? new Date(a.FECHA_INGRESO) : new Date(8640000000000000); // Max Date
+                    const dateB = b.FECHA_INGRESO ? new Date(b.FECHA_INGRESO) : new Date(8640000000000000);
+                    return dateA - dateB;
+                }
             });
             callback(salesArray);
         } else {

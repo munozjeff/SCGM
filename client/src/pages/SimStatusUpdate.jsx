@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { updateSimStatus, getAllMonths, listenToSalesByMonth } from '../services/SalesService';
+import { updateUserActivity } from '../services/UserService';
+import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import LoadingOverlay from '../components/LoadingOverlay';
 
 export default function SimStatusUpdate() {
+    const { currentUser } = useAuth();
     const [month, setMonth] = useState('');
     const [existingMonths, setExistingMonths] = useState([]);
     const [sales, setSales] = useState([]);
@@ -22,6 +25,9 @@ export default function SimStatusUpdate() {
     const [filters, setFilters] = useState({ NUMERO: '', ESTADO_SIM: '' });
     const [uniqueValues, setUniqueValues] = useState({});
 
+    // Filter Visibility State
+    const [showFilters, setShowFilters] = useState(false);
+
     // Modal
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editForm, setEditForm] = useState(null);
@@ -35,8 +41,15 @@ export default function SimStatusUpdate() {
         if (month) {
             setLoading(true);
             const unsubscribe = listenToSalesByMonth(month, (data) => {
-                setSales(data);
-                setFilteredSales(data);
+                // Sort by FECHA_INGRESO (oldest first)
+                const sortedData = [...data].sort((a, b) => {
+                    const dateA = a.FECHA_INGRESO ? new Date(a.FECHA_INGRESO + 'T00:00:00') : new Date(0);
+                    const dateB = b.FECHA_INGRESO ? new Date(b.FECHA_INGRESO + 'T00:00:00') : new Date(0);
+                    return dateA - dateB; // Ascending order (oldest first)
+                });
+
+                setSales(sortedData);
+                setFilteredSales(sortedData);
                 setLoading(false);
             });
             return () => unsubscribe();
@@ -96,6 +109,7 @@ export default function SimStatusUpdate() {
         try {
             const res = await updateSimStatus(month, [editForm]);
             setResult(res);
+            if (currentUser) updateUserActivity(currentUser.uid);
             setIsEditModalOpen(false);
         } catch (err) { alert(err.message); }
         setLoading(false);
@@ -116,6 +130,7 @@ export default function SimStatusUpdate() {
                 })).filter(r => r.NUMERO);
                 const res = await updateSimStatus(month, updates);
                 setResult(res);
+                if (currentUser) updateUserActivity(currentUser.uid);
             } catch (err) { alert(err.message); }
             setLoading(false);
         };
@@ -133,52 +148,51 @@ export default function SimStatusUpdate() {
     };
 
     return (
-        <div className="container" style={{ padding: '1rem', maxWidth: '100%', height: 'calc(100vh - 80px)', display: 'flex', flexDirection: 'column' }}>
+        <div className="container" style={{ padding: '0.5rem', maxWidth: '100%', height: 'calc(100vh - 70px)', display: 'flex', flexDirection: 'column' }}>
             {loading && <LoadingOverlay />}
             <div className="glass-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                <div style={{ padding: '1rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                    <h2 style={{ fontSize: '1.25rem' }}>Actualizar Estado SIM</h2>
-                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <select
-                            value={month}
-                            onChange={e => setMonth(e.target.value)}
-                            style={{ padding: '0.5rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.2)', color: 'white', minWidth: '150px' }}
-                        >
-                            <option value="">-- Seleccionar Mes --</option>
+                <div style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <h2 style={{ fontSize: '0.85rem', margin: 0, fontWeight: '600', whiteSpace: 'nowrap' }}>Estado SIM</h2>
+                        <select value={month} onChange={e => setMonth(e.target.value)} style={{ padding: '0.25rem 0.4rem', fontSize: '0.75rem', minWidth: '110px', border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.2)', color: 'white', borderRadius: '4px' }}>
+                            <option value="">Mes...</option>
                             {existingMonths.map(m => <option key={m}>{m}</option>)}
                         </select>
-
-                        <div style={{ position: 'relative', overflow: 'hidden', display: 'inline-block' }}>
-                            <button className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }} disabled={!month}>📤 Importar Excel</button>
+                        <div style={{ position: 'relative', overflow: 'hidden', display: 'inline-block', flexShrink: 0 }}>
+                            <button className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', whiteSpace: 'nowrap' }} disabled={!month}>📤 Importar</button>
                             <input type="file" accept=".xlsx" onChange={handleFileUpload} disabled={!month} style={{ position: 'absolute', left: 0, top: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
                         </div>
                     </div>
+                    <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                        <button onClick={() => setShowFilters(!showFilters)} style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem', color: showFilters ? '#10b981' : '#60a5fa', background: 'transparent', border: 'none', cursor: 'pointer' }} title={showFilters ? 'Ocultar Filtros' : 'Mostrar Filtros'}>
+                            {showFilters ? '🔍' : '📊'}
+                        </button>
+                        <button onClick={clearFilters} style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem', color: '#f87171', background: 'transparent', border: 'none', cursor: 'pointer' }}>Limpiar</button>
+                    </div>
                 </div>
 
-                {result && <div style={{ padding: '0.5rem 1rem', background: 'rgba(16, 185, 129, 0.1)', color: '#34d399', fontSize: '0.9rem' }}>Última operación: {result.updated} actualizados, {result.skipped} omitidos.</div>}
-
-                <div style={{ padding: '0.5rem 1rem', display: 'flex', justifyContent: 'flex-end' }}>
-                    <button onClick={clearFilters} style={{ fontSize: '0.8rem', color: '#f87171', background: 'transparent', border: 'none', cursor: 'pointer' }}>Limpiar Filtros</button>
-                </div>
+                {result && <div style={{ padding: '0.3rem 0.5rem', background: 'rgba(16, 185, 129, 0.1)', color: '#34d399', fontSize: '0.75rem' }}>Última operación: {result.updated} actualizados, {result.skipped} omitidos.</div>}
 
                 <div className="table-container" style={{ flex: 1, overflow: 'auto' }}>
-                    <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                    <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem' }}>
                         <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--card-bg)' }}>
                             <tr>
                                 {columns.map(col => (
-                                    <th key={col} style={{ padding: '0.75rem', textAlign: 'left', minWidth: '150px' }}>
-                                        <div style={{ marginBottom: '0.25rem' }}>{col.replace('_', ' ')}</div>
-                                        {selectFields.includes(col) ? (
-                                            <select
-                                                value={filters[col]}
-                                                onChange={(e) => handleFilterChange(col, e.target.value)}
-                                                style={{ width: '100%', padding: '0.2rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', borderRadius: '4px' }}
-                                            >
-                                                <option value="">Todos</option>
-                                                {(uniqueValues[col] || []).map(val => <option key={val} value={val}>{val}</option>)}
-                                            </select>
-                                        ) : (
-                                            <input value={filters[col]} onChange={(e) => handleFilterChange(col, e.target.value)} placeholder="..." style={{ width: '100%', padding: '0.2rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', borderRadius: '4px' }} />
+                                    <th key={col} style={{ padding: '0.5rem', textAlign: 'left', minWidth: '120px' }}>
+                                        <div style={{ marginBottom: showFilters ? '0.25rem' : '0' }}>{col.replace('_', ' ')}</div>
+                                        {showFilters && (
+                                            selectFields.includes(col) ? (
+                                                <select
+                                                    value={filters[col]}
+                                                    onChange={(e) => handleFilterChange(col, e.target.value)}
+                                                    style={{ width: '100%', padding: '0.2rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', borderRadius: '4px' }}
+                                                >
+                                                    <option value="">Todos</option>
+                                                    {(uniqueValues[col] || []).map(val => <option key={val} value={val}>{val}</option>)}
+                                                </select>
+                                            ) : (
+                                                <input value={filters[col]} onChange={(e) => handleFilterChange(col, e.target.value)} placeholder="..." style={{ width: '100%', padding: '0.2rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', borderRadius: '4px' }} />
+                                            )
                                         )}
                                     </th>
                                 ))}

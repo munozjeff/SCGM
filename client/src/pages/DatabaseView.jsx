@@ -36,6 +36,9 @@ export default function DatabaseView() {
     // Opciones únicas para selectores
     const [uniqueValues, setUniqueValues] = useState({});
 
+    // Filter Visibility State
+    const [showFilters, setShowFilters] = useState(false);
+
     useEffect(() => {
         loadMonths();
     }, []);
@@ -84,7 +87,7 @@ export default function DatabaseView() {
         const unsubscribe = listenToSalesByMonth(selectedMonth, (salesData) => {
             setSales(salesData);
             setLoading(false);
-        });
+        }, 'CREATED_DESC');
 
         // Cleanup listener when component unmounts or month changes
         return () => {
@@ -218,10 +221,10 @@ export default function DatabaseView() {
     };
 
     return (
-        <div className="container" style={{ maxWidth: '100%', padding: '1rem' }}>
+        <div className="container" style={{ maxWidth: '100%', padding: '0.5rem' }}>
             {loading && <LoadingOverlay />}
-            <div className="glass-panel" style={{ padding: '1.5rem' }}>
-                <h2 style={{ marginBottom: '1rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem', fontSize: '1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="glass-panel" style={{ padding: '0.75rem' }}>
+                <h2 style={{ marginBottom: '0.75rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem', fontSize: '0.95rem', margin: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>Base de Datos</span>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                         {/* Input file oculto */}
@@ -300,56 +303,74 @@ export default function DatabaseView() {
                     </button>
                 </div>
 
-                {/* Filtros */}
+                {/* Filtros Colapsables */}
                 {sales.length > 0 && (
-                    <div className="glass-panel" style={{ padding: '1rem', marginBottom: '1.5rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                            <h3 style={{ margin: 0, fontSize: '0.95rem' }}>Filtros</h3>
+                    <>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
                             <button
-                                onClick={clearFilters}
+                                onClick={() => setShowFilters(!showFilters)}
                                 style={{
-                                    padding: '0.4rem 0.8rem',
-                                    background: 'rgba(239, 68, 68, 0.2)',
-                                    border: '1px solid rgba(239, 68, 68, 0.4)',
-                                    color: '#f87171',
-                                    borderRadius: 'var(--radius-md)',
-                                    cursor: 'pointer',
-                                    fontSize: '0.75rem'
+                                    fontSize: '0.8rem',
+                                    color: showFilters ? '#10b981' : '#60a5fa',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer'
                                 }}
                             >
-                                Limpiar
+                                {showFilters ? '🔍 Ocultar Filtros' : '📊 Mostrar Filtros'}
                             </button>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.75rem', maxHeight: '250px', overflowY: 'auto', padding: '0.5rem' }}>
-                            {columns.map(col => (
-                                <div key={col}>
-                                    <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                                        {col.replace(/_/g, ' ')}
-                                    </label>
-                                    {selectFields.includes(col) ? (
-                                        <select
-                                            value={filters[col]}
-                                            onChange={(e) => handleFilterChange(col, e.target.value)}
-                                            style={{ fontSize: '0.7rem', padding: '0.4rem', width: '100%' }}
-                                        >
-                                            <option value="">Todos</option>
-                                            {(uniqueValues[col] || []).map(value => (
-                                                <option key={value} value={value}>{value}</option>
-                                            ))}
-                                        </select>
-                                    ) : (
-                                        <input
-                                            type="text"
-                                            value={filters[col]}
-                                            onChange={(e) => handleFilterChange(col, e.target.value)}
-                                            placeholder="..."
-                                            style={{ fontSize: '0.7rem', padding: '0.4rem' }}
-                                        />
-                                    )}
+                        {showFilters && (
+                            <div className="glass-panel" style={{ padding: '0.75rem', marginBottom: '0.75rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                                    <h3 style={{ margin: 0, fontSize: '0.95rem' }}>Filtros</h3>
+                                    <button
+                                        onClick={clearFilters}
+                                        style={{
+                                            padding: '0.4rem 0.8rem',
+                                            background: 'rgba(239, 68, 68, 0.2)',
+                                            border: '1px solid rgba(239, 68, 68, 0.4)',
+                                            color: '#f87171',
+                                            borderRadius: 'var(--radius-md)',
+                                            cursor: 'pointer',
+                                            fontSize: '0.75rem'
+                                        }}
+                                    >
+                                        Limpiar
+                                    </button>
                                 </div>
-                            ))}
-                        </div>
-                    </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.75rem', maxHeight: '250px', overflowY: 'auto', padding: '0.5rem' }}>
+                                    {columns.map(col => (
+                                        <div key={col}>
+                                            <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                                {col.replace(/_/g, ' ')}
+                                            </label>
+                                            {selectFields.includes(col) ? (
+                                                <select
+                                                    value={filters[col]}
+                                                    onChange={(e) => handleFilterChange(col, e.target.value)}
+                                                    style={{ fontSize: '0.7rem', padding: '0.4rem', width: '100%' }}
+                                                >
+                                                    <option value="">Todos</option>
+                                                    {(uniqueValues[col] || []).map(value => (
+                                                        <option key={value} value={value}>{value}</option>
+                                                    ))}
+                                                </select>
+                                            ) : (
+                                                <input
+                                                    type="text"
+                                                    value={filters[col]}
+                                                    onChange={(e) => handleFilterChange(col, e.target.value)}
+                                                    placeholder="..."
+                                                    style={{ fontSize: '0.7rem', padding: '0.4rem' }}
+                                                />
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </>
                 )}
 
                 {/* Resultados */}

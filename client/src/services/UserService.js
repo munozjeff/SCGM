@@ -1,6 +1,6 @@
 import { auth, db } from "../firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { ref, set, get, remove } from "firebase/database";
+import { ref, set, get, remove, update, onValue, off } from "firebase/database";
 
 /**
  * Crea un nuevo usuario en Firebase Auth y Realtime DB
@@ -60,6 +60,39 @@ export const createUser = async (email, password, role = 'user') => {
  * Obtiene la lista de todos los usuarios
  * @returns {Promise<Array>} - Array de usuarios
  */
+/**
+ * Escucha cambios en tiempo real de todos los usuarios
+ * @param {function} callback - Función a ejecutar con los datos actualizados
+ * @returns {function} - Función para cancelar la suscripción
+ */
+export const listenToAllUsers = (callback) => {
+    const usersRef = ref(db, 'users');
+    const unsubscribe = onValue(usersRef, (snapshot) => {
+        if (snapshot.exists()) {
+            const usersData = snapshot.val();
+            const usersList = Object.keys(usersData).map(uid => ({
+                uid,
+                ...usersData[uid]
+            })).sort((a, b) => {
+                const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+                const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+                return dateB - dateA;
+            });
+            callback(usersList);
+        } else {
+            callback([]);
+        }
+    }, (error) => {
+        console.error("Error listening to users:", error);
+    });
+
+    return () => off(usersRef);
+};
+
+/**
+ * Obtiene la lista de todos los usuarios
+ * @returns {Promise<Array>} - Array de usuarios
+ */
 export const getAllUsers = async () => {
     try {
         const snapshot = await get(ref(db, 'users'));
@@ -106,5 +139,20 @@ export const deleteUserData = async (uid) => {
     } catch (error) {
         console.error("Error deleting user:", error);
         throw error;
+    }
+};
+
+/**
+ * Actualiza la fecha de última actividad del usuario
+ * @param {string} uid - ID del usuario
+ */
+export const updateUserActivity = async (uid) => {
+    if (!uid) return;
+    try {
+        await update(ref(db, `users/${uid}`), {
+            lastActive: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error("Error updating user activity:", error);
     }
 };
