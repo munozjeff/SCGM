@@ -156,6 +156,15 @@ export default function Dashboard() {
         });
     };
 
+    // 7. Seguimiento Envíos (ESTADO_SIM = 'ENVIADA' AND ESTADO_GUIA != 'ENTREGADA')
+    const filterTrackingShipments = (salesData) => {
+        return salesData.filter(sale => {
+            const estadoSim = sale.ESTADO_SIM ? sale.ESTADO_SIM.trim().toUpperCase() : '';
+            const estadoGuia = sale.ESTADO_GUIA ? sale.ESTADO_GUIA.trim().toUpperCase() : '';
+            return estadoSim === 'ENVIADA' && estadoGuia !== 'ENTREGADA';
+        });
+    };
+
     // Distribución Breakdown
     const calculateSimStatusDistribution = (salesData) => {
         const total = salesData.length;
@@ -203,9 +212,9 @@ export default function Dashboard() {
             missingSimStatus: filterMissingSimStatus(salesData),
             activationsToday: filterActivationsToday(salesData),
             activationsTomorrow: filterActivationsTomorrow(salesData),
-            missingManagement: filterMissingManagement(salesData),
             portfolio: filterPortfolio(salesData),
             pendingShipments: filterPendingShipments(salesData),
+            trackingShipments: filterTrackingShipments(salesData),
             simStatusDistribution: calculateSimStatusDistribution(salesData),
             totalSales: salesData.length
         };
@@ -223,6 +232,7 @@ export default function Dashboard() {
             NUMERO: item.NUMERO,
             ICCID: item.ICCID,
             ESTADO_SIM: item.ESTADO_SIM,
+            ESTADO_GUIA: item.ESTADO_GUIA,
             TIPO_VENTA: item.TIPO_VENTA,
             FECHA_INGRESO: item.FECHA_INGRESO,
             FECHA_ACTIVACION: item.FECHA_ACTIVACION,
@@ -448,6 +458,16 @@ export default function Dashboard() {
                         data={metrics.pendingShipments}
                         subtitle="Novedad 'Envío Pendiente' y No 'Enviada'"
                         color="warning"
+                        onExport={handleExport}
+                    />
+
+                    {/* 7. Seguimiento Envíos */}
+                    <MetricCard
+                        icon="📦"
+                        title="Seguimiento Envíos"
+                        data={metrics.trackingShipments}
+                        subtitle="Enviada y No Entregada"
+                        color="info"
                         onExport={handleExport}
                     />
 
