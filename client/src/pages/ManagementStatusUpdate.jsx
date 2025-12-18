@@ -60,11 +60,10 @@ export default function ManagementStatusUpdate() {
         if (month) {
             setLoading(true);
             const unsubscribe = listenToSalesByMonth(month, (data) => {
-                // Filter to show only ACTIVA records for ALL users
+                // Filter to show records where ESTADO_SIM is 'ACTIVA' or empty/null
                 let processedData = data.filter(item => {
-                    const isActive = item.ESTADO_SIM && item.ESTADO_SIM.toUpperCase() === 'ACTIVA';
-                    const hasActivationDate = item.FECHA_ACTIVACION && String(item.FECHA_ACTIVACION).trim() !== '';
-                    return isActive && hasActivationDate;
+                    const simStatus = item.ESTADO_SIM ? String(item.ESTADO_SIM).toUpperCase().trim() : '';
+                    return simStatus === 'ACTIVA' || simStatus === '';
                 });
 
                 // Sort by FECHA_INGRESO (oldest first)
