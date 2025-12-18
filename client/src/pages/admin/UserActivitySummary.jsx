@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getUserActivity, getAllUsersActivity } from '../../services/UserActivityService'; // Need to implement getAllUsersActivity or just list users
+import { getUserActivity, getAllUsersActivity, logUserAction } from '../../services/UserActivityService'; // Need to implement getAllUsersActivity or just list users
 import { getAllMonths } from '../../services/SalesService'; // Reuse for simplicity or use date picker
 import { useAuth } from '../../contexts/AuthContext';
 // We might need a way to list all users to filter by user. 
@@ -20,7 +20,11 @@ import LoadingOverlay from '../../components/LoadingOverlay';
 
 export default function UserActivitySummary() {
     const { currentUser } = useAuth(); // Should be admin
-    const [month, setMonth] = useState(new Date().toISOString().slice(0, 7).replace('-', '_')); // YYYY_MM
+    // Use local time for default month to match logUserAction which uses local time
+    const [month, setMonth] = useState(() => {
+        const now = new Date();
+        return `${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}`;
+    });
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(false);
     const [selectedUser, setSelectedUser] = useState(''); // Filter by email
@@ -30,63 +34,37 @@ export default function UserActivitySummary() {
     const getMonthInputValue = () => month.replace('_', '-');
     const handleMonthChange = (e) => setMonth(e.target.value.replace('-', '_'));
 
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            const data = await getAllUsersActivity();
+
+            const flattened = [];
+            if (data) {
+                Object.entries(data).forEach(([uid, months]) => {
+                    if (months && months[month]) {
+                        Object.entries(months[month]).forEach(([pushId, log]) => {
+                            flattened.push({ id: pushId, uid, ...log });
+                        });
+                    }
+                });
+            }
+
+            // Sort by timestamp desc
+            flattened.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            setAllLogs(flattened);
+            setLogs(flattened);
+        } catch (err) {
+            alert("Error cargando actividad: " + err.message);
+        }
+        setLoading(false);
+    };
+
     useEffect(() => {
         if (!month) return;
-        setLoading(true);
-
-        // Fetching strategy: 
-        // We need a service function to fetch ALL logs for a specific month across all users.
-        // Current structure: user_activity_logs / uid / month / pushId
-        // Searching this might be inefficient if we don't have a "month_activity_logs" index.
-        // BUT, given the scope, maybe we just iterate known users? No, we don't know them.
-        // Let's fetch the entire root `user_activity_logs` is bad practice if huge.
-        // BETTER: Update UserActivityService to likely allow fetching all. 
-        // Let's try to fetch everything and client-side filter for this MVP if dataset is small, 
-        // OR better, we need a method `getLogsByMonth` in service.
-
-        // Let's assume we update Service to get all logs. 
-        // For now, I will write the component assuming I can get data.
-
-        // TEMPORARY: Since I can't easily query "all users for month X" without a structured index for that,
-        // I will implement a "Fetch All" in service that pulls `user_activity_logs` (careful with size) 
-        // OR we change the logging verification.
-
-        // Actually, let's pause and update UserActivityService to support "getAllActivityForMonth" 
-        // This might require a change in DB structure or just grabbing root if small.
-        // Let's try to fetch all `user_activity_logs` and process client side for now (MVP).
-
-        // Wait, I can't import `getAllUsersActivity` yet because I didn't write it.
-        // I will write this component to use it, then update the service.
-
-        const fetchData = async () => {
-            try {
-                const data = await getAllUsersActivity(); // We'll implement this to fetch root or optimized
-                // Data structure: { userId: { yearMonth: { params... } } }
-
-                const flattened = [];
-                if (data) {
-                    Object.entries(data).forEach(([uid, months]) => {
-                        if (months && months[month]) {
-                            Object.entries(months[month]).forEach(([pushId, log]) => {
-                                flattened.push({ id: pushId, uid, ...log });
-                            });
-                        }
-                    });
-                }
-
-                // Sort by timestamp desc
-                flattened.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-                setAllLogs(flattened);
-                setLogs(flattened);
-            } catch (err) {
-                console.error(err);
-            }
-            setLoading(false);
-        };
-
         fetchData();
-
     }, [month]);
+
 
     // Filter by user
     useEffect(() => {
@@ -106,7 +84,7 @@ export default function UserActivitySummary() {
                     Resumen de Actividad de Usuarios
                 </h2>
 
-                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
                     <div>
                         <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Mes</label>
                         <input
@@ -125,6 +103,14 @@ export default function UserActivitySummary() {
                             style={{ padding: '0.5rem', borderRadius: '4px', border: 'none', minWidth: '250px' }}
                         />
                     </div>
+                    <button
+                        onClick={() => fetchData()}
+                        className="btn-primary"
+                        style={{ padding: '0.5rem 1rem', height: '36px' }}
+                        disabled={loading}
+                    >
+                        {loading ? 'Cargando...' : 'Consultar'}
+                    </button>
                 </div>
 
                 <div className="table-container" style={{ maxHeight: '600px', overflow: 'auto' }}>
