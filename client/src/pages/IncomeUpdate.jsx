@@ -341,6 +341,12 @@ export default function IncomeUpdate() {
 
                 // Multi-select filter (array)
                 if (Array.isArray(filterVal)) {
+                    if (filterVal.includes(EMPTY_VALUE)) {
+                        const checkEmpty = val === '' || val == null;
+                        const otherValues = filterVal.filter(v => v !== EMPTY_VALUE);
+                        const checkOthers = otherValues.length > 0 ? otherValues.includes(item[col]) : false;
+                        return checkEmpty || checkOthers;
+                    }
                     return filterVal.includes(item[col]);
                 }
                 // Text filter

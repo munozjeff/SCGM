@@ -84,7 +84,16 @@ export default function SalesTypeUpdate() {
             if (!filterVal || (Array.isArray(filterVal) && filterVal.length === 0)) return;
             filtered = filtered.filter(item => {
                 const val = item[col] ? String(item[col]).toLowerCase() : '';
-                if (Array.isArray(filterVal)) return filterVal.includes(item[col]);
+                // Multi-select filter (array)
+                if (Array.isArray(filterVal)) {
+                    if (filterVal.includes(EMPTY_VALUE)) {
+                        const checkEmpty = item[col] == null || item[col] === '';
+                        const otherValues = filterVal.filter(v => v !== EMPTY_VALUE);
+                        const checkOthers = otherValues.length > 0 ? otherValues.includes(item[col]) : false;
+                        return checkEmpty || checkOthers;
+                    }
+                    return filterVal.includes(item[col]);
+                }
                 return val.includes(filterVal.toLowerCase());
             });
         });

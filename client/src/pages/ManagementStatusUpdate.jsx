@@ -116,6 +116,12 @@ export default function ManagementStatusUpdate() {
 
                 // Multi-select filter (array)
                 if (Array.isArray(filterVal)) {
+                    if (filterVal.includes(EMPTY_VALUE)) {
+                        const checkEmpty = item[col] == null || item[col] === '';
+                        const otherValues = filterVal.filter(v => v !== EMPTY_VALUE);
+                        const checkOthers = otherValues.length > 0 ? otherValues.includes(item[col]) : false;
+                        return checkEmpty || checkOthers;
+                    }
                     return filterVal.includes(item[col]);
                 }
 
@@ -372,6 +378,7 @@ export default function ManagementStatusUpdate() {
                                 >
                                     <option value="">(Seleccionar)</option>
                                     <option value="VACIO">VACIO (Limpiar)</option>
+                                    <option value="NO LLEGO">NO LLEGO</option>
                                     <option value="RECHAZADO">RECHAZADO</option>
                                     <option value="CE">CE</option>
                                     <option value="EN ESPERA">EN ESPERA</option>

@@ -21,7 +21,8 @@ export const VALID_NOVEDAD_GESTION = [
     "CE",
     "EN ESPERA",
     "ENVIO PENDIENTE",
-    "SIN CONTACTO"
+    "SIN CONTACTO",
+    "NO LLEGO"
 ];
 // ----------------------------
 
@@ -117,7 +118,8 @@ const normalizeNovedad = (val) => {
         "CE": "CE",
         "EN ESPERA": "EN ESPERA",
         "ENVIO PENDIENTE": "ENVIO PENDIENTE",
-        "SIN CONTACTO": "SIN CONTACTO"
+        "SIN CONTACTO": "SIN CONTACTO",
+        "NO LLEGO": "NO LLEGO"
     };
     return map[str] || str;
 };
