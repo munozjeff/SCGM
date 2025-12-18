@@ -138,6 +138,10 @@ export default function MainLayout() {
                         <span style={{ marginRight: isSidebarCollapsed ? 0 : '0.5rem', display: 'flex', justifyContent: 'center', minWidth: '24px' }}>📋</span>
                         {!isSidebarCollapsed && <span>Base de Datos</span>}
                     </Link>
+                    <Link to="/admin/activity" className="nav-link" onClick={handleNavClick} title="Actividad">
+                        <span style={{ marginRight: isSidebarCollapsed ? 0 : '0.5rem', display: 'flex', justifyContent: 'center', minWidth: '24px' }}>📉</span>
+                        {!isSidebarCollapsed && <span>Actividad Usuarios</span>}
+                    </Link>
                     <Link to="/admin/users" className="nav-link" onClick={handleNavClick} title="Usuarios">
                         <span style={{ marginRight: isSidebarCollapsed ? 0 : '0.5rem', display: 'flex', justifyContent: 'center', minWidth: '24px' }}>👥</span>
                         {!isSidebarCollapsed && <span>Gestionar Usuarios</span>}

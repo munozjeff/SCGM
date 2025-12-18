@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { updateActivationDate, getAllMonths, listenToSalesByMonth } from '../services/SalesService';
 import { updateUserActivity } from '../services/UserService';
+import { logUserAction } from '../services/UserActivityService';
 import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import LoadingOverlay from '../components/LoadingOverlay';
@@ -128,7 +129,13 @@ export default function ActivationUpdate() {
         try {
             const res = await updateActivationDate(month, [editForm]);
             setResult(res);
-            if (currentUser) updateUserActivity(currentUser.uid);
+            if (currentUser) {
+                updateUserActivity(currentUser.uid);
+                const actionDetails = isNewRecord
+                    ? `Creó nuevo registro: ${editForm.NUMERO}`
+                    : `Actualizó registro: ${editForm.NUMERO} a Fecha: ${editForm.FECHA_ACTIVACION}`;
+                logUserAction(currentUser.uid, currentUser.email, 'UPDATE_ACTIVATION', actionDetails, { month, ...res });
+            }
             setIsEditModalOpen(false);
         } catch (err) { alert(err.message); }
         setLoading(false);
@@ -175,7 +182,10 @@ export default function ActivationUpdate() {
 
                 const res = await updateActivationDate(month, updates);
                 setResult(res);
-                if (currentUser) updateUserActivity(currentUser.uid);
+                if (currentUser) {
+                    updateUserActivity(currentUser.uid);
+                    logUserAction(currentUser.uid, currentUser.email, 'IMPORT_ACTIVATION', `Importó ${updates.length} registros`, { month, ...res });
+                }
             } catch (err) { alert(err.message); }
             setLoading(false);
         };

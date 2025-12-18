@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { updatePortfolio, getAllMonths, listenToSalesByMonth } from '../services/SalesService';
 import { updateUserActivity } from '../services/UserService';
+import { logUserAction } from '../services/UserActivityService';
 import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import LoadingOverlay from '../components/LoadingOverlay';
@@ -110,7 +111,13 @@ export default function PortfolioUpdate() {
         try {
             const res = await updatePortfolio(month, [editForm]);
             setResult(res);
-            if (currentUser) updateUserActivity(currentUser.uid);
+            if (currentUser) {
+                updateUserActivity(currentUser.uid);
+                const actionDetails = isNewRecord
+                    ? `Creó nuevo registro: ${editForm.NUMERO}`
+                    : `Actualizó registro: ${editForm.NUMERO}`;
+                logUserAction(currentUser.uid, currentUser.email, 'UPDATE_PORTFOLIO', actionDetails, { month, ...res });
+            }
             setIsEditModalOpen(false);
         } catch (err) { alert(err.message); }
         setLoading(false);
@@ -139,7 +146,10 @@ export default function PortfolioUpdate() {
                 }).filter(r => r.NUMERO);
                 const res = await updatePortfolio(month, updates);
                 setResult(res);
-                if (currentUser) updateUserActivity(currentUser.uid);
+                if (currentUser) {
+                    updateUserActivity(currentUser.uid);
+                    logUserAction(currentUser.uid, currentUser.email, 'IMPORT_PORTFOLIO', `Importó ${updates.length} registros`, { month, ...res });
+                }
             } catch (err) { alert(err.message); }
             setLoading(false);
         };

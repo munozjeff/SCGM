@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { updateIncome, getAllMonths, listenToSalesByMonth } from '../services/SalesService';
 import { updateUserActivity } from '../services/UserService';
+import { logUserAction } from '../services/UserActivityService';
 import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import LoadingOverlay from '../components/LoadingOverlay';
@@ -401,7 +402,10 @@ export default function IncomeUpdate() {
         try {
             const res = await updateIncome(month, [payload]);
             setResult(res);
-            if (currentUser) updateUserActivity(currentUser.uid);
+            if (currentUser) {
+                updateUserActivity(currentUser.uid);
+                logUserAction(currentUser.uid, currentUser.email, 'UPDATE_INCOME', `Marcó registro como ${value ? 'VERDADERO' : 'FALSO'} (Escaneo)`, { month, ...res });
+            }
             setScanResult(null); // Close result modal
             // Automatically resume scanning after short delay if desired, or stay closed
         } catch (err) {
@@ -446,7 +450,13 @@ export default function IncomeUpdate() {
 
             const res = await updateIncome(month, [finalForm]);
             setResult(res);
-            if (currentUser) updateUserActivity(currentUser.uid);
+            if (currentUser) {
+                updateUserActivity(currentUser.uid);
+                const actionDetails = isNewRecord
+                    ? `Creó nuevo registro: ${finalForm.NUMERO}`
+                    : `Actualizó registro: ${finalForm.NUMERO}`;
+                logUserAction(currentUser.uid, currentUser.email, 'UPDATE_INCOME', actionDetails, { month, ...res });
+            }
             setIsEditModalOpen(false);
         } catch (err) {
             alert(err.message);
@@ -479,7 +489,10 @@ export default function IncomeUpdate() {
 
                 const res = await updateIncome(month, updates);
                 setResult(res);
-                if (currentUser) updateUserActivity(currentUser.uid);
+                if (currentUser) {
+                    updateUserActivity(currentUser.uid);
+                    logUserAction(currentUser.uid, currentUser.email, 'IMPORT_INCOME', `Importó ${updates.length} registros`, { month, ...res });
+                }
             } catch (err) { alert(err.message); }
             setLoading(false);
         };

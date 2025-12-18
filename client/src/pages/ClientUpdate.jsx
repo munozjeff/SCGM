@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { updateClientInfo, getAllMonths, listenToSalesByMonth } from '../services/SalesService';
 import { updateUserActivity } from '../services/UserService';
+import { logUserAction } from '../services/UserActivityService';
 import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import LoadingOverlay from '../components/LoadingOverlay';
@@ -118,7 +119,11 @@ export default function ClientUpdate() {
             const res = await updateClientInfo(month, [formData]);
             setResult(res);
             if (res.updated > 0) {
-                if (currentUser) updateUserActivity(currentUser.uid);
+                if (currentUser) {
+                    updateUserActivity(currentUser.uid);
+                    const actionDetails = `Actualizó/Creó cliente: ${formData.NUMERO}`;
+                    logUserAction(currentUser.uid, currentUser.email, 'UPDATE_CLIENT', actionDetails, { month, ...res });
+                }
                 setModalOpen(false); // Close if updated
                 // Reset form data if in 'new entry' mode, but here we only have edit mode via table or modal.
                 // If it was a new entry, we should clear. If edit, we close.
@@ -173,7 +178,10 @@ export default function ClientUpdate() {
 
                 const res = await updateClientInfo(month, updates);
                 setResult(res);
-                if (currentUser) updateUserActivity(currentUser.uid);
+                if (currentUser) {
+                    updateUserActivity(currentUser.uid);
+                    logUserAction(currentUser.uid, currentUser.email, 'IMPORT_CLIENT', `Importó ${updates.length} registros`, { month, ...res });
+                }
             } catch (err) {
                 console.error(err);
                 alert("Error procesando el archivo: " + err.message);

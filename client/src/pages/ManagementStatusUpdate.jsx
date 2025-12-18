@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { updateManagementStatus, getAllMonths, listenToSalesByMonth } from '../services/SalesService';
 import { updateUserActivity } from '../services/UserService';
+import { logUserAction } from '../services/UserActivityService';
 import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import LoadingOverlay from '../components/LoadingOverlay';
@@ -183,7 +184,13 @@ export default function ManagementStatusUpdate() {
         try {
             const res = await updateManagementStatus(month, [editForm]);
             setResult(res);
-            if (currentUser) updateUserActivity(currentUser.uid);
+            if (currentUser) {
+                updateUserActivity(currentUser.uid);
+                const actionDetails = isNewRecord
+                    ? `Creó nuevo registro: ${editForm.NUMERO}`
+                    : `Actualizó registro: ${editForm.NUMERO} a ${editForm.NOVEDAD_EN_GESTION}`;
+                logUserAction(currentUser.uid, currentUser.email, 'UPDATE_MANAGEMENT', actionDetails, { month, ...res });
+            }
             setIsEditModalOpen(false);
         } catch (err) { alert(err.message); }
         setLoading(false);
@@ -208,7 +215,10 @@ export default function ManagementStatusUpdate() {
                 }).filter(r => r.NUMERO);
                 const res = await updateManagementStatus(month, updates);
                 setResult(res);
-                if (currentUser) updateUserActivity(currentUser.uid);
+                if (currentUser) {
+                    updateUserActivity(currentUser.uid);
+                    logUserAction(currentUser.uid, currentUser.email, 'IMPORT_MANAGEMENT', `Importó ${updates.length} registros`, { month, ...res });
+                }
             } catch (err) { alert(err.message); }
             setLoading(false);
         };

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { updateSalesType, getAllMonths, listenToSalesByMonth } from '../services/SalesService';
 import { updateUserActivity } from '../services/UserService';
+import { logUserAction } from '../services/UserActivityService';
 import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import LoadingOverlay from '../components/LoadingOverlay';
@@ -130,7 +131,13 @@ export default function SalesTypeUpdate() {
         try {
             const res = await updateSalesType(month, [editForm]);
             setResult(res);
-            if (currentUser) updateUserActivity(currentUser.uid);
+            if (currentUser) {
+                updateUserActivity(currentUser.uid);
+                const actionDetails = isNewRecord
+                    ? `Creó nuevo registro: ${editForm.NUMERO}`
+                    : `Actualizó registro: ${editForm.NUMERO} a ${editForm.TIPO_VENTA}`;
+                logUserAction(currentUser.uid, currentUser.email, 'UPDATE_SALESTYPE', actionDetails, { month, ...res });
+            }
             setIsEditModalOpen(false);
         } catch (err) { alert(err.message); }
         setLoading(false);
@@ -155,7 +162,10 @@ export default function SalesTypeUpdate() {
                 }).filter(item => item.NUMERO);
                 const res = await updateSalesType(month, updates);
                 setResult(res);
-                if (currentUser) updateUserActivity(currentUser.uid);
+                if (currentUser) {
+                    updateUserActivity(currentUser.uid);
+                    logUserAction(currentUser.uid, currentUser.email, 'IMPORT_SALESTYPE', `Importó ${updates.length} registros`, { month, ...res });
+                }
             } catch (err) { alert(err.message); }
             setLoading(false);
         };

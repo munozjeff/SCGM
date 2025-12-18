@@ -27,6 +27,8 @@ import UserDatabase from './pages/user/UserDatabase';
 import RegistroSIMUpdate from './pages/user/RegistroSIMUpdate';
 
 
+import UserActivitySummary from './pages/admin/UserActivitySummary';
+
 function AppContent() {
   const dispatch = useDispatch();
 
@@ -46,6 +48,7 @@ function AppContent() {
           </ProtectedRoute>
         }>
           <Route index element={<Dashboard />} />
+          <Route path="activity" element={<UserActivitySummary />} />
           <Route path="sales/update" element={<SalesUpdate />} />
           <Route path="income/update" element={<IncomeUpdate />} />
           <Route path="client/update" element={<ClientUpdate />} />

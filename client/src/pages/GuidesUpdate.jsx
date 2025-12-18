@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { updateGuides, getAllMonths, listenToSalesByMonth } from '../services/SalesService';
 import { updateUserActivity } from '../services/UserService';
+import { logUserAction } from '../services/UserActivityService';
 import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import LoadingOverlay from '../components/LoadingOverlay';
@@ -144,7 +145,13 @@ export default function GuidesUpdate() {
         try {
             const res = await updateGuides(month, [editForm]);
             setResult(res);
-            if (currentUser) updateUserActivity(currentUser.uid);
+            if (currentUser) {
+                updateUserActivity(currentUser.uid);
+                const actionDetails = isNewRecord
+                    ? `Creó nuevo registro: ${editForm.NUMERO}`
+                    : `Actualizó registro: ${editForm.NUMERO} (Guía: ${editForm.GUIA})`;
+                logUserAction(currentUser.uid, currentUser.email, 'UPDATE_GUIDES', actionDetails, { month, ...res });
+            }
             setIsEditModalOpen(false);
         } catch (err) { alert(err.message); }
         setLoading(false);
@@ -179,7 +186,10 @@ export default function GuidesUpdate() {
                 }).filter(r => r.NUMERO);
                 const res = await updateGuides(month, updates);
                 setResult(res);
-                if (currentUser) updateUserActivity(currentUser.uid);
+                if (currentUser) {
+                    updateUserActivity(currentUser.uid);
+                    logUserAction(currentUser.uid, currentUser.email, 'IMPORT_GUIDES', `Importó ${updates.length} registros`, { month, ...res });
+                }
             } catch (err) { alert(err.message); }
             setLoading(false);
         };
