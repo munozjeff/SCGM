@@ -199,7 +199,7 @@ export const addSales = async (month, sales) => {
                 ICCID: sale.ICCID ? removeAccents(String(sale.ICCID)).trim() : "",
                 FECHA_INGRESO: normalizeDate(sale.FECHA_INGRESO) || "",
                 FECHA_ACTIVACION: normalizeDate(sale.FECHA_ACTIVACION) || "",
-                ESTADO_SIM: normalizeEstadoSim(sale.ESTADO_SIM) || "ACTIVA",
+                ESTADO_SIM: normalizeEstadoSim(sale.ESTADO_SIM) || "",
                 TIPO_VENTA: normalizeTipoVenta(sale.TIPO_VENTA) || "",
                 NOVEDAD_EN_GESTION: normalizeNovedad(sale.NOVEDAD_EN_GESTION) || "",
                 CONTACTO_1: sale.CONTACTO_1 ? removeAccents(String(sale.CONTACTO_1)).trim() : "",

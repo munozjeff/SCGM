@@ -117,6 +117,11 @@ export default function Dashboard() {
         return salesData.filter(sale => !sale.FECHA_INGRESO || sale.FECHA_INGRESO.trim() === '');
     };
 
+    // 4. Sin Estado SIM (Empty ESTADO_SIM)
+    const filterMissingSimStatus = (salesData) => {
+        return salesData.filter(sale => !sale.ESTADO_SIM || sale.ESTADO_SIM.trim() === '');
+    };
+
     // 2. Activations Today
     const filterActivationsToday = (salesData) => {
         return salesData.filter(sale => isToday(sale.FECHA_ACTIVACION));
@@ -195,6 +200,7 @@ export default function Dashboard() {
             missingManagement: filterMissingManagement(salesData),
             missingActivation: filterMissingActivation(salesData),
             missingIncome: filterMissingIncome(salesData),
+            missingSimStatus: filterMissingSimStatus(salesData),
             activationsToday: filterActivationsToday(salesData),
             activationsTomorrow: filterActivationsTomorrow(salesData),
             missingManagement: filterMissingManagement(salesData),
@@ -364,6 +370,16 @@ export default function Dashboard() {
 
             {!loading && metrics && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', alignItems: 'stretch' }}>
+
+                    {/* NEW: Sin Estado SIM */}
+                    <MetricCard
+                        icon="❓"
+                        title="Sin Estado SIM"
+                        data={metrics.missingSimStatus}
+                        subtitle="Falta ESTADO_SIM"
+                        color="danger"
+                        onExport={handleExport}
+                    />
 
                     {/* 1. Gestión Pendiente (Sin info y Fecha <= Hoy) */}
                     <MetricCard
