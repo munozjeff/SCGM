@@ -125,12 +125,18 @@ export default function PortfolioUpdate() {
             try {
                 const wb = XLSX.read(evt.target.result, { type: 'binary' });
                 const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-                const updates = data.map(r => ({
-                    NUMERO: String(r['NUMERO'] || r['Numero'] || '').trim(),
-                    SALDO: r['SALDO'] || r['Saldo'] || null,
-                    ABONO: r['ABONO'] || r['Abono'] || null,
-                    FECHA_CARTERA: r['FECHA CARTERA'] || r['Fecha Cartera'] || r['FECHA_CARTERA'] || null
-                })).filter(r => r.NUMERO);
+                const updates = data.map(r => {
+                    const obj = { NUMERO: String(r['NUMERO'] || r['Numero'] || '').trim() };
+                    const saldo = r['SALDO'] || r['Saldo'];
+                    const abono = r['ABONO'] || r['Abono'];
+                    const fecha = r['FECHA CARTERA'] || r['Fecha Cartera'] || r['FECHA_CARTERA'];
+
+                    if (saldo !== undefined && saldo !== null && String(saldo).trim() !== '') obj.SALDO = saldo;
+                    if (abono !== undefined && abono !== null && String(abono).trim() !== '') obj.ABONO = abono;
+                    if (fecha !== undefined && fecha !== null && String(fecha).trim() !== '') obj.FECHA_CARTERA = fecha;
+
+                    return obj;
+                }).filter(r => r.NUMERO);
                 const res = await updatePortfolio(month, updates);
                 setResult(res);
                 if (currentUser) updateUserActivity(currentUser.uid);

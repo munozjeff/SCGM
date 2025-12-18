@@ -150,15 +150,24 @@ export default function GuidesUpdate() {
             try {
                 const wb = XLSX.read(evt.target.result, { type: 'binary' });
                 const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-                const updates = data.map(r => ({
-                    NUMERO: String(r['NUMERO'] || r['Numero'] || '').trim(),
-                    GUIA: r['GUIA'] || r['Guia'] || null,
-                    ESTADO_GUIA: r['ESTADO GUIA'] || r['Estado Guia'] || r['ESTADO_GUIA'] || null,
-                    TRANSPORTADORA: r['TRANSPORTADORA'] || r['Transportadora'] || null,
-                    NOVEDAD: r['NOVEDAD'] || r['Novedad'] || null,
-                    FECHA_HORA_REPORTE: r['FECHA Y HORA DEL REPORTE'] || r['FECHA_HORA_REPORTE'] || null,
-                    DESCRIPCION_NOVEDAD: r['DESCRIPCIÓN DE LA NOVEDAD ACTUAL'] || r['DESCRIPCION_NOVEDAD'] || r['Descripcion Novedad'] || null
-                })).filter(r => r.NUMERO);
+                const updates = data.map(r => {
+                    const obj = { NUMERO: String(r['NUMERO'] || r['Numero'] || '').trim() };
+                    const guia = r['GUIA'] || r['Guia'];
+                    const estado = r['ESTADO GUIA'] || r['Estado Guia'] || r['ESTADO_GUIA'];
+                    const transportadora = r['TRANSPORTADORA'] || r['Transportadora'];
+                    const novedad = r['NOVEDAD'] || r['Novedad'];
+                    const fecha = r['FECHA Y HORA DEL REPORTE'] || r['FECHA_HORA_REPORTE'];
+                    const descripcion = r['DESCRIPCIÓN DE LA NOVEDAD ACTUAL'] || r['DESCRIPCION_NOVEDAD'] || r['Descripcion Novedad'];
+
+                    if (guia !== undefined && guia !== null && String(guia).trim() !== '') obj.GUIA = guia;
+                    if (estado !== undefined && estado !== null && String(estado).trim() !== '') obj.ESTADO_GUIA = estado;
+                    if (transportadora !== undefined && transportadora !== null && String(transportadora).trim() !== '') obj.TRANSPORTADORA = transportadora;
+                    if (novedad !== undefined && novedad !== null && String(novedad).trim() !== '') obj.NOVEDAD = novedad;
+                    if (fecha !== undefined && fecha !== null && String(fecha).trim() !== '') obj.FECHA_HORA_REPORTE = fecha;
+                    if (descripcion !== undefined && descripcion !== null && String(descripcion).trim() !== '') obj.DESCRIPCION_NOVEDAD = descripcion;
+
+                    return obj;
+                }).filter(r => r.NUMERO);
                 const res = await updateGuides(month, updates);
                 setResult(res);
                 if (currentUser) updateUserActivity(currentUser.uid);

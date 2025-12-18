@@ -136,10 +136,14 @@ export default function SalesTypeUpdate() {
             try {
                 const wb = XLSX.read(evt.target.result, { type: 'binary' });
                 const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-                const updates = data.map(row => ({
-                    NUMERO: String(row['NUMERO'] || row['Numero'] || '').trim(),
-                    TIPO_VENTA: String(row['TIPO VENTA'] || row['Tipo Venta'] || row['TIPO_VENTA'] || '').trim() || null
-                })).filter(item => item.NUMERO);
+                const updates = data.map(row => {
+                    const obj = { NUMERO: String(row['NUMERO'] || row['Numero'] || '').trim() };
+                    const tipo = row['TIPO VENTA'] || row['Tipo Venta'] || row['TIPO_VENTA'];
+                    if (tipo !== undefined && tipo !== null && String(tipo).trim() !== '') {
+                        obj.TIPO_VENTA = String(tipo).trim();
+                    }
+                    return obj;
+                }).filter(item => item.NUMERO);
                 const res = await updateSalesType(month, updates);
                 setResult(res);
                 if (currentUser) updateUserActivity(currentUser.uid);
@@ -295,6 +299,7 @@ export default function SalesTypeUpdate() {
                                     style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid var(--glass-border)' }}
                                 >
                                     <option value="">(Seleccionar)</option>
+                                    <option value="VACIO">VACIO (Limpiar)</option>
                                     <option value="portabilidad">portabilidad</option>
                                     <option value="linea nueva">linea nueva</option>
                                     <option value="ppt">ppt</option>

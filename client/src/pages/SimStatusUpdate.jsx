@@ -157,11 +157,19 @@ export default function SimStatusUpdate() {
             try {
                 const wb = XLSX.read(evt.target.result, { type: 'binary' });
                 const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-                const updates = data.map(row => ({
-                    NUMERO: String(row['NUMERO'] || row['Numero'] || '').trim(),
-                    ESTADO_SIM: row['ESTADO SIM'] || row['Estado Sim'] || row['ESTADO_SIM'],
-                    ICCID: row['ICCID'] || row['Iccid'] || row['ICID']
-                })).filter(r => r.NUMERO);
+                const updates = data.map(row => {
+                    const obj = { NUMERO: String(row['NUMERO'] || row['Numero'] || '').trim() };
+                    const estado = row['ESTADO SIM'] || row['Estado Sim'] || row['ESTADO_SIM'];
+                    const iccid = row['ICCID'] || row['Iccid'] || row['ICID'];
+
+                    if (estado !== undefined && estado !== null && String(estado).trim() !== '') {
+                        obj.ESTADO_SIM = String(estado).trim();
+                    }
+                    if (iccid !== undefined && iccid !== null && String(iccid).trim() !== '') {
+                        obj.ICCID = String(iccid).trim();
+                    }
+                    return obj;
+                }).filter(r => r.NUMERO);
                 const res = await updateSimStatus(month, updates);
                 setResult(res);
                 if (currentUser) updateUserActivity(currentUser.uid);
@@ -324,6 +332,7 @@ export default function SimStatusUpdate() {
                                     style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid var(--glass-border)' }}
                                 >
                                     <option value="">(Seleccionar)</option>
+                                    <option value="VACIO">VACIO (Limpiar)</option>
                                     <option value="ACTIVA">ACTIVA</option>
                                     <option value="INACTIVA">INACTIVA</option>
                                     <option value="ENVIADA">ENVIADA</option>

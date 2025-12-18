@@ -157,12 +157,12 @@ export default function ClientUpdate() {
                     const contacto2 = row['CONTACTO_2'] || row['Contacto 2'] || row['CONTACTO 2'];
                     const nombre = row['NOMBRE'] || row['Nombre'] || row['nombre'] || row['CLIENTE'] || row['Cliente'];
 
-                    return {
-                        NUMERO: String(numero || '').trim(),
-                        CONTACTO_1: contacto1 ? String(contacto1).trim() : null,
-                        CONTACTO_2: contacto2 ? String(contacto2).trim() : null,
-                        NOMBRE: nombre ? String(nombre).trim() : null
-                    };
+                    const obj = { NUMERO: String(numero || '').trim() };
+                    if (contacto1 !== undefined && contacto1 !== null && String(contacto1).trim() !== '') obj.CONTACTO_1 = String(contacto1).trim();
+                    if (contacto2 !== undefined && contacto2 !== null && String(contacto2).trim() !== '') obj.CONTACTO_2 = String(contacto2).trim();
+                    if (nombre !== undefined && nombre !== null && String(nombre).trim() !== '') obj.NOMBRE = String(nombre).trim();
+
+                    return obj;
                 }).filter(item => item.NUMERO);
 
                 if (updates.length === 0) {

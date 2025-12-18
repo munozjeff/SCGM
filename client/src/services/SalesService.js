@@ -32,6 +32,11 @@ export const VALID_NOVEDAD_GESTION = [
  * @returns {Promise<Object>} - Resumen { updated, skipped, errors }
  */
 
+const removeAccents = (str) => {
+    if (!str) return str;
+    return String(str).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+};
+
 const normalizeDate = (value) => {
     if (!value) return undefined;
 
@@ -41,7 +46,6 @@ const normalizeDate = (value) => {
     }
 
     // 2. If it's an Excel Serial Number (e.g. 45000)
-    // Excel base date: Dec 30, 1899. (There is a leap year bug in 1900, but usually this works)
     if (typeof value === 'number' && value > 20000) {
         const date = new Date((value - 25569) * 86400 * 1000);
         return date.toISOString().split('T')[0];
@@ -51,8 +55,7 @@ const normalizeDate = (value) => {
     const str = String(value).trim();
     if (!str) return undefined;
 
-    // Try to detect DD/MM/YYYY or D/M/YYYY (common in Colombia/LATAM)
-    // Regex matches: (1-2 digits) / (1-2 digits) / (4 digits)
+    // Try to detect DD/MM/YYYY or D/M/YYYY
     const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
     if (dmyMatch) {
         const day = dmyMatch[1].padStart(2, '0');
@@ -61,66 +64,59 @@ const normalizeDate = (value) => {
         return `${year}-${month}-${day}`;
     }
 
-    // Try YYYY-MM-DD or YYYY/MM/DD
+    // Try YYYY-MM-DD
     const ymdMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
     if (ymdMatch) {
-        const year = ymdMatch[1];
-        const month = ymdMatch[2].padStart(2, '0');
-        const day = ymdMatch[3].padStart(2, '0');
-        return `${year}-${month}-${day}`;
+        return `${ymdMatch[1]}-${ymdMatch[2].padStart(2, '0')}-${ymdMatch[3].padStart(2, '0')}`;
     }
 
-    // Fallback: Try standard Date parse (May interpret 11/3 as Nov 3 for en-US locale)
-    // But since we handled D/M/Y explicitly above, this catches odd formats
     const date = new Date(str);
     if (!isNaN(date.getTime())) {
         return date.toISOString().split('T')[0];
     }
 
-    return str; // Return original if unknown format
+    return str;
 };
 
 const normalizeEstadoSim = (val) => {
+    if (val === "") return ""; // Explicit empty string allowed
     if (!val) return undefined;
-    const str = String(val).trim().toUpperCase();
+    const str = removeAccents(String(val)).trim().toUpperCase();
+    if (str === "VACIO") return "";
     const map = {
         "ACTIVA": "ACTIVA",
         "INACTIVA": "INACTIVA",
         "ENVIADA": "ENVIADA",
         "OTRO CANAL": "OTRO CANAL",
-        "NO SE ENCONTRO INFORMACIÓN DEL CLIENTE": "No se encontro información del cliente",
-        "NO SE ENCONTRO INFORMACION DEL CLIENTE": "No se encontro información del cliente"
+        "NO SE ENCONTRO INFORMACION DEL CLIENTE": "No se encontro informacion del cliente"
     };
     if (map[str]) return map[str];
-    // Allow fuzzy match if strictly needed, or just return normalized case if close?
-    // User asked "debe listar las opciones disponibles", implying strictness.
-    // Let's check if the user wanted strict validation or just normalization.
-    // "Variables que aceptan solo valores ya definidos... debe listar las opciones...".
-    // For import, we should probably try to match or fallback to uppercase if valid?
-    return map[str] || str; // Return mapped or original (allows validation check later)
+    return str;
 };
 
 const normalizeTipoVenta = (val) => {
+    if (val === "") return ""; // Explicit empty string allowed
     if (!val) return undefined;
-    const str = String(val).trim().toLowerCase();
+    const str = removeAccents(String(val)).trim().toLowerCase();
+    if (str === "vacio") return "";
     const map = {
         "portabilidad": "portabilidad",
         "linea nueva": "linea nueva",
-        "línea nueva": "linea nueva", // Common typo
         "ppt": "ppt"
     };
     return map[str] || str;
 };
 
 const normalizeNovedad = (val) => {
+    if (val === "") return ""; // Explicit empty string allowed
     if (!val) return undefined;
-    const str = String(val).trim().toUpperCase();
+    const str = removeAccents(String(val)).trim().toUpperCase();
+    if (str === "VACIO") return "";
     const map = {
         "RECHAZADO": "RECHAZADO",
         "CE": "CE",
         "EN ESPERA": "EN ESPERA",
         "ENVIO PENDIENTE": "ENVIO PENDIENTE",
-        "ENVÍO PENDIENTE": "ENVIO PENDIENTE",
         "SIN CONTACTO": "SIN CONTACTO"
     };
     return map[str] || str;
@@ -138,14 +134,15 @@ export const updateIncome = async (month, updates) => {
     for (const item of updates) {
         const numero = item.NUMERO;
         if (!numero) {
-            summary.errors.push(`Missing NUMERO: ${JSON.stringify(item)}`);
+            summary.errors.push(`Missing NUMERO`);
             continue;
         }
 
         const updateData = {};
         if (item.REGISTRO_SIM !== undefined) updateData.REGISTRO_SIM = item.REGISTRO_SIM;
         if (item.FECHA_INGRESO) updateData.FECHA_INGRESO = normalizeDate(item.FECHA_INGRESO);
-        if (item.ICCID) updateData.ICCID = item.ICCID;
+        // Clean ICCID
+        if (item.ICCID !== undefined) updateData.ICCID = item.ICCID ? removeAccents(String(item.ICCID)).trim() : "";
 
         if (Object.keys(updateData).length === 0) {
             summary.skipped++;
@@ -199,30 +196,30 @@ export const addSales = async (month, sales) => {
             const newSale = {
                 NUMERO: String(sale.NUMERO),
                 REGISTRO_SIM: sale.REGISTRO_SIM === true, // Default to false if not strictly true
-                ICCID: sale.ICCID ? String(sale.ICCID) : "", // "ICID" mapped to ICCID
+                ICCID: sale.ICCID ? removeAccents(String(sale.ICCID)).trim() : "",
                 FECHA_INGRESO: normalizeDate(sale.FECHA_INGRESO) || "",
                 FECHA_ACTIVACION: normalizeDate(sale.FECHA_ACTIVACION) || "",
                 ESTADO_SIM: normalizeEstadoSim(sale.ESTADO_SIM) || "ACTIVA",
                 TIPO_VENTA: normalizeTipoVenta(sale.TIPO_VENTA) || "",
                 NOVEDAD_EN_GESTION: normalizeNovedad(sale.NOVEDAD_EN_GESTION) || "",
-                CONTACTO_1: sale.CONTACTO_1 || "",
-                CONTACTO_2: sale.CONTACTO_2 || "",
-                NOMBRE: sale.NOMBRE || "",
+                CONTACTO_1: sale.CONTACTO_1 ? removeAccents(String(sale.CONTACTO_1)).trim() : "",
+                CONTACTO_2: sale.CONTACTO_2 ? removeAccents(String(sale.CONTACTO_2)).trim() : "",
+                NOMBRE: sale.NOMBRE ? removeAccents(String(sale.NOMBRE)).trim().toUpperCase() : "",
                 SALDO: sale.SALDO !== undefined && sale.SALDO !== "" ? Number(sale.SALDO) : "",
                 ABONO: sale.ABONO !== undefined && sale.ABONO !== "" ? Number(sale.ABONO) : "", // Maps to user's "ABONOS" requirement using existing DB key if compatible, usually singular
                 FECHA_CARTERA: normalizeDate(sale.FECHA_CARTERA) || "",
-                GUIA: sale.GUIA || "",
-                TRANSPORTADORA: sale.TRANSPORTADORA || "",
-                NOVEDAD: sale.NOVEDAD || "",
+                GUIA: sale.GUIA ? removeAccents(String(sale.GUIA)).trim() : "",
+                TRANSPORTADORA: sale.TRANSPORTADORA ? removeAccents(String(sale.TRANSPORTADORA)).trim().toUpperCase() : "",
+                NOVEDAD: sale.NOVEDAD ? removeAccents(String(sale.NOVEDAD)).trim().toUpperCase() : "",
                 FECHA_HORA_REPORTE: normalizeDate(sale.FECHA_HORA_REPORTE) || "",
-                DESCRIPCION_NOVEDAD: sale.DESCRIPCION_NOVEDAD || "",
+                DESCRIPCION_NOVEDAD: sale.DESCRIPCION_NOVEDAD ? removeAccents(String(sale.DESCRIPCION_NOVEDAD)).trim() : "",
                 createdAt: new Date().toISOString()
             };
 
             // 3. Specific Conditional Validations
 
-            // ESTADO_SIM Valid Options
-            if (newSale.ESTADO_SIM && !VALID_ESTADO_SIM.includes(newSale.ESTADO_SIM)) {
+            // ESTADO_SIM Valid Options (Allow empty)
+            if (newSale.ESTADO_SIM && newSale.ESTADO_SIM !== "" && !VALID_ESTADO_SIM.includes(newSale.ESTADO_SIM)) {
                 throw new Error(`Invalid ESTADO_SIM: '${newSale.ESTADO_SIM}'. Allowed: ${VALID_ESTADO_SIM.join(', ')}`);
             }
 
@@ -234,12 +231,12 @@ export const addSales = async (month, sales) => {
             }
 
             // TIPO_VENTA Valid Options
-            if (newSale.TIPO_VENTA && !VALID_TIPO_VENTA.includes(newSale.TIPO_VENTA)) {
+            if (newSale.TIPO_VENTA && newSale.TIPO_VENTA !== "" && !VALID_TIPO_VENTA.includes(newSale.TIPO_VENTA)) {
                 throw new Error(`Invalid TIPO_VENTA: '${newSale.TIPO_VENTA}'. Allowed: ${VALID_TIPO_VENTA.join(', ')}`);
             }
 
             // NOVEDAD_EN_GESTION Valid Options
-            if (newSale.NOVEDAD_EN_GESTION && !VALID_NOVEDAD_GESTION.includes(newSale.NOVEDAD_EN_GESTION)) {
+            if (newSale.NOVEDAD_EN_GESTION && newSale.NOVEDAD_EN_GESTION !== "" && !VALID_NOVEDAD_GESTION.includes(newSale.NOVEDAD_EN_GESTION)) {
                 throw new Error(`Invalid NOVEDAD_EN_GESTION: '${newSale.NOVEDAD_EN_GESTION}'. Allowed: ${VALID_NOVEDAD_GESTION.join(', ')}`);
             }
 
@@ -399,10 +396,10 @@ export const updateClientInfo = async (month, updates) => {
                 summary.errors.push(`Invalid CONTACTO_2 for ${numero}`);
                 continue;
             }
-            updateData.CONTACTO_2 = item.CONTACTO_2;
+            updateData.CONTACTO_2 = item.CONTACTO_2 !== "" ? removeAccents(String(item.CONTACTO_2)).trim() : "";
         }
 
-        if (item.NOMBRE) updateData.NOMBRE = item.NOMBRE;
+        if (item.NOMBRE !== undefined) updateData.NOMBRE = item.NOMBRE !== "" ? removeAccents(String(item.NOMBRE)).trim().toUpperCase() : "";
 
         if (Object.keys(updateData).length === 0) {
             summary.skipped++;
@@ -500,13 +497,13 @@ export const updateSimStatus = async (month, updates) => {
         if (item.ESTADO_SIM !== undefined) {
             const normalized = normalizeEstadoSim(item.ESTADO_SIM);
 
-            if (!VALID_ESTADO_SIM.includes(normalized)) {
+            if (normalized !== "" && !VALID_ESTADO_SIM.includes(normalized)) {
                 invalidEstadoSimCount++;
                 continue; // Skip this record
             }
             updateData.ESTADO_SIM = normalized;
         }
-        if (item.ICCID) updateData.ICCID = item.ICCID;
+        if (item.ICCID !== undefined) updateData.ICCID = item.ICCID ? removeAccents(String(item.ICCID)).trim() : "";
 
         if (Object.keys(updateData).length === 0) {
             summary.skipped++;
@@ -565,7 +562,7 @@ export const updateSalesType = async (month, updates) => {
         if (item.TIPO_VENTA !== undefined) {
             const normalized = normalizeTipoVenta(item.TIPO_VENTA);
 
-            if (!VALID_TIPO_VENTA.includes(normalized)) {
+            if (normalized !== "" && !VALID_TIPO_VENTA.includes(normalized)) {
                 invalidTipoVentaCount++;
                 continue; // Skip this record
             }
@@ -625,7 +622,7 @@ export const updateManagementStatus = async (month, updates) => {
         if (item.NOVEDAD_EN_GESTION !== undefined) {
             const normalized = normalizeNovedad(item.NOVEDAD_EN_GESTION);
 
-            if (!VALID_NOVEDAD_GESTION.includes(normalized)) {
+            if (normalized !== "" && !VALID_NOVEDAD_GESTION.includes(normalized)) {
                 invalidNovedadCount++;
                 continue; // Skip this record
             }
@@ -674,8 +671,8 @@ export const updatePortfolio = async (month, updates) => {
             continue;
         }
         const updateData = {};
-        if (item.SALDO) updateData.SALDO = item.SALDO;
-        if (item.ABONO) updateData.ABONO = item.ABONO;
+        if (item.SALDO !== undefined) updateData.SALDO = item.SALDO;
+        if (item.ABONO !== undefined) updateData.ABONO = item.ABONO;
         if (item.FECHA_CARTERA) updateData.FECHA_CARTERA = normalizeDate(item.FECHA_CARTERA);
 
         if (Object.keys(updateData).length === 0) {
@@ -713,12 +710,12 @@ export const updateGuides = async (month, updates) => {
             continue;
         }
         const updateData = {};
-        if (item.GUIA) updateData.GUIA = item.GUIA;
-        if (item.ESTADO_GUIA) updateData.ESTADO_GUIA = item.ESTADO_GUIA;
-        if (item.TRANSPORTADORA) updateData.TRANSPORTADORA = item.TRANSPORTADORA;
-        if (item.NOVEDAD) updateData.NOVEDAD = item.NOVEDAD;
+        if (item.GUIA !== undefined) updateData.GUIA = item.GUIA ? removeAccents(String(item.GUIA)).trim() : "";
+        if (item.ESTADO_GUIA !== undefined) updateData.ESTADO_GUIA = item.ESTADO_GUIA ? removeAccents(String(item.ESTADO_GUIA)).trim().toUpperCase() : "";
+        if (item.TRANSPORTADORA !== undefined) updateData.TRANSPORTADORA = item.TRANSPORTADORA ? removeAccents(String(item.TRANSPORTADORA)).trim().toUpperCase() : "";
+        if (item.NOVEDAD !== undefined) updateData.NOVEDAD = item.NOVEDAD ? removeAccents(String(item.NOVEDAD)).trim().toUpperCase() : "";
         if (item.FECHA_HORA_REPORTE) updateData.FECHA_HORA_REPORTE = normalizeDate(item.FECHA_HORA_REPORTE);
-        if (item.DESCRIPCION_NOVEDAD) updateData.DESCRIPCION_NOVEDAD = item.DESCRIPCION_NOVEDAD;
+        if (item.DESCRIPCION_NOVEDAD !== undefined) updateData.DESCRIPCION_NOVEDAD = item.DESCRIPCION_NOVEDAD ? removeAccents(String(item.DESCRIPCION_NOVEDAD)).trim() : "";
 
         if (Object.keys(updateData).length === 0) {
             summary.skipped++;
@@ -792,9 +789,9 @@ export const importSales = async (month, salesData) => {
                 ESTADO_SIM: normalizeEstadoSim(rawSale.ESTADO_SIM) || undefined,
                 TIPO_VENTA: normalizeTipoVenta(rawSale.TIPO_VENTA) || undefined,
                 NOVEDAD_EN_GESTION: normalizeNovedad(rawSale.NOVEDAD_EN_GESTION) || undefined,
-                CONTACTO_1: rawSale.CONTACTO_1 ? String(rawSale.CONTACTO_1) : undefined,
-                CONTACTO_2: rawSale.CONTACTO_2 ? String(rawSale.CONTACTO_2) : undefined,
-                NOMBRE: rawSale.NOMBRE || undefined,
+                CONTACTO_1: rawSale.CONTACTO_1 ? removeAccents(String(rawSale.CONTACTO_1)).trim() : undefined,
+                CONTACTO_2: rawSale.CONTACTO_2 ? removeAccents(String(rawSale.CONTACTO_2)).trim() : undefined,
+                NOMBRE: rawSale.NOMBRE ? removeAccents(String(rawSale.NOMBRE)).trim().toUpperCase() : undefined,
                 SALDO: rawSale.SALDO !== undefined ? Number(rawSale.SALDO) : undefined,
                 ABONO: rawSale.ABONO !== undefined ? Number(rawSale.ABONO) : undefined,
                 FECHA_CARTERA: normalizeDate(rawSale.FECHA_CARTERA) || undefined,

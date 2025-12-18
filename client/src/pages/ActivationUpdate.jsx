@@ -148,7 +148,20 @@ export default function ActivationUpdate() {
                             if (!isNaN(d.getTime())) fechaValida = d.toISOString().split('T')[0];
                         }
                     }
-                    return { NUMERO: String(row['NUMERO'] || '').trim(), FECHA_ACTIVACION: fechaValida };
+
+                    const obj = { NUMERO: String(row['NUMERO'] || '').trim() };
+                    // Only include FECHA_ACTIVACION if it is valid or explicitly present (though if invalid from Excel it's hard to distinguish "bad date" from "no date", here we assume empty/missing means no update)
+                    // If row has column but empty value -> fechaRaw is undefined/empty -> fechaValida is null.
+
+                    // Requirement: "si hay un campo vacio en el excel este mantendra su valor original"
+                    // If cell is empty, fechaRaw is undefined.
+                    // If cell is present but invalid, fechaValida is null.
+                    // We probably only want to update if we parsed a valid date.
+
+                    if (fechaValida !== null) {
+                        obj.FECHA_ACTIVACION = fechaValida;
+                    }
+                    return obj;
                 }).filter(r => r.NUMERO);
 
                 const res = await updateActivationDate(month, updates);

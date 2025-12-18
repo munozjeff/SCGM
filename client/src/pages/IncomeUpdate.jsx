@@ -463,12 +463,12 @@ export default function IncomeUpdate() {
                     const fecha = row['FECHA INGRESO'] || row['Fecha Ingreso'] || row['FECHA_INGRESO'];
                     const iccid = row['ICCID'] || row['Iccid'] || row['ICID'] || row['icid'];
 
-                    return {
-                        NUMERO: String(numero || '').trim(),
-                        REGISTRO_SIM: registro ? String(registro).trim() : null,
-                        FECHA_INGRESO: fecha ? String(fecha).trim() : null,
-                        ICCID: iccid ? String(iccid).trim() : null
-                    };
+                    const obj = { NUMERO: String(numero || '').trim() };
+                    if (registro !== undefined && registro !== null && String(registro).trim() !== '') obj.REGISTRO_SIM = String(registro).trim();
+                    if (fecha !== undefined && fecha !== null && String(fecha).trim() !== '') obj.FECHA_INGRESO = String(fecha).trim();
+                    if (iccid !== undefined && iccid !== null && String(iccid).trim() !== '') obj.ICCID = String(iccid).trim();
+
+                    return obj;
                 }).filter(r => r.NUMERO);
 
                 const res = await updateIncome(month, updates);

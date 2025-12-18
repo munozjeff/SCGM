@@ -192,10 +192,14 @@ export default function ManagementStatusUpdate() {
             try {
                 const wb = XLSX.read(evt.target.result, { type: 'binary' });
                 const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-                const updates = data.map(r => ({
-                    NUMERO: String(r['NUMERO'] || r['Numero'] || '').trim(),
-                    NOVEDAD_EN_GESTION: String(r['NOVEDAD'] || r['Novedad'] || r['NOVEDAD_EN_GESTION'] || '').trim() || null
-                })).filter(r => r.NUMERO);
+                const updates = data.map(r => {
+                    const obj = { NUMERO: String(r['NUMERO'] || r['Numero'] || '').trim() };
+                    const nov = r['NOVEDAD'] || r['Novedad'] || r['NOVEDAD_EN_GESTION'];
+                    if (nov !== undefined && nov !== null && String(nov).trim() !== '') {
+                        obj.NOVEDAD_EN_GESTION = String(nov).trim();
+                    }
+                    return obj;
+                }).filter(r => r.NUMERO);
                 const res = await updateManagementStatus(month, updates);
                 setResult(res);
                 if (currentUser) updateUserActivity(currentUser.uid);
@@ -229,6 +233,11 @@ export default function ManagementStatusUpdate() {
 
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <button className="btn-secondary" onClick={() => downloadTemplate(['NUMERO', 'NOVEDAD_EN_GESTION'], 'Plantilla_Gestion')} style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>📥 Plantilla</button>
+
+                            <label className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', whiteSpace: 'nowrap', cursor: 'pointer', display: 'flex', alignItems: 'center', margin: 0 }}>
+                                📤 Importar Excel
+                                <input type="file" accept=".xlsx, .xls" onChange={handleFileUpload} style={{ display: 'none' }} />
+                            </label>
 
                             <select value={dateFilterType} onChange={e => setDateFilterType(e.target.value)} style={{ padding: '0.25rem 0.4rem', fontSize: '0.75rem', minWidth: '90px', border: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.2)', color: 'white', borderRadius: '4px' }}>
                                 <option value="all">Todas</option>
@@ -362,6 +371,7 @@ export default function ManagementStatusUpdate() {
                                     style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid var(--glass-border)' }}
                                 >
                                     <option value="">(Seleccionar)</option>
+                                    <option value="VACIO">VACIO (Limpiar)</option>
                                     <option value="RECHAZADO">RECHAZADO</option>
                                     <option value="CE">CE</option>
                                     <option value="EN ESPERA">EN ESPERA</option>
