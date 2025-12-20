@@ -316,8 +316,8 @@ export default function IncomeUpdate() {
                 hasEmpty[field] = allValues.some(v => v == null || v === '');
 
                 const values = [...new Set(allValues.map(v => {
-                    if (v === true) return 'true';
-                    if (v === false) return 'false';
+                    if (v === true) return 'LLEGO';
+                    if (v === false) return 'NO LLEGO';
                     return v;
                 }).filter(v => v !== null && v !== undefined && v !== ''))];
                 unique[field] = values.sort();
@@ -336,8 +336,8 @@ export default function IncomeUpdate() {
 
             filtered = filtered.filter(item => {
                 let val = item[col];
-                if (val === true) val = 'true';
-                else if (val === false) val = 'false';
+                if (val === true) val = 'LLEGO';
+                else if (val === false) val = 'NO LLEGO';
                 else val = val ? String(val) : '';
 
                 // Multi-select filter (array)
@@ -404,7 +404,7 @@ export default function IncomeUpdate() {
             setResult(res);
             if (currentUser) {
                 updateUserActivity(currentUser.uid);
-                logUserAction(currentUser.uid, currentUser.email, 'UPDATE_INCOME', `Marcó registro como ${value ? 'VERDADERO' : 'FALSO'} (Escaneo)`, { month, ...res });
+                logUserAction(currentUser.uid, currentUser.email, 'UPDATE_INCOME', `Marcó registro como ${value} (Escaneo)`, { month, ...res });
             }
             setScanResult(null); // Close result modal
             // Automatically resume scanning after short delay if desired, or stay closed
@@ -444,9 +444,8 @@ export default function IncomeUpdate() {
             // Convert select value to boolean/null if needed, but endpoint might handle string 'true'/'false'
             // Let's standardise to boolean for REGISTRO_SIM
             const finalForm = { ...editForm };
-            if (finalForm.REGISTRO_SIM === 'true' || finalForm.REGISTRO_SIM === true) finalForm.REGISTRO_SIM = true;
-            else if (finalForm.REGISTRO_SIM === 'false' || finalForm.REGISTRO_SIM === false) finalForm.REGISTRO_SIM = false;
-            else finalForm.REGISTRO_SIM = null;
+            // No conversion needed, generic service handles normalization
+
 
             const res = await updateIncome(month, [finalForm]);
             setResult(res);
@@ -563,11 +562,15 @@ export default function IncomeUpdate() {
                                     <div style={{ marginBottom: '1rem' }}>
                                         <strong>Número:</strong> {scanResult.data.NUMERO}<br />
                                         <strong>ICCID:</strong> {scanResult.data.ICCID}<br />
-                                        <strong>Estado:</strong> {scanResult.data.REGISTRO_SIM ? 'Registrado' : 'No Registrado'}
+                                        <strong>Estado:</strong> {
+                                            scanResult.data.REGISTRO_SIM === true ? 'LLEGO' :
+                                                scanResult.data.REGISTRO_SIM === false ? 'NO LLEGO' :
+                                                    scanResult.data.REGISTRO_SIM || 'No Registrado'
+                                        }
                                     </div>
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
-                                        <button onClick={() => handleMarkRegistroSIM(true)} className="btn-primary" style={{ background: '#10b981' }}>✓ VERDADERO</button>
-                                        <button onClick={() => handleMarkRegistroSIM(false)} className="btn-primary" style={{ background: '#ef4444' }}>✗ FALSO</button>
+                                        <button onClick={() => handleMarkRegistroSIM("LLEGO")} className="btn-primary" style={{ background: '#10b981' }}>✓ LLEGO</button>
+                                        <button onClick={() => handleMarkRegistroSIM("NO LLEGO")} className="btn-primary" style={{ background: '#ef4444' }}>✗ NO LLEGO</button>
                                     </div>
                                     <button onClick={closeScanResult} style={{ marginTop: '1rem', width: '100%', padding: '0.5rem', background: 'transparent', border: '1px solid white', color: 'white', borderRadius: '4px' }}>Cancelar</button>
                                 </>
@@ -630,7 +633,11 @@ export default function IncomeUpdate() {
                                         className="hover-row"
                                     >
                                         <td style={{ padding: '0.5rem' }}>{item.NUMERO}</td>
-                                        <td style={{ padding: '0.5rem' }}>{item.REGISTRO_SIM ? 'VERDADERO' : (item.REGISTRO_SIM === false ? 'FALSO' : '')}</td>
+                                        <td style={{ padding: '0.5rem' }}>
+                                            {item.REGISTRO_SIM === true ? 'LLEGO' :
+                                                item.REGISTRO_SIM === false ? 'NO LLEGO' :
+                                                    item.REGISTRO_SIM}
+                                        </td>
                                         <td style={{ padding: '0.5rem' }}>{item.FECHA_INGRESO}</td>
                                         <td style={{ padding: '0.5rem' }}>{item.ICCID}</td>
                                     </tr>
@@ -664,13 +671,13 @@ export default function IncomeUpdate() {
                             <div style={{ marginBottom: '1rem' }}>
                                 <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.8rem' }}>Registro SIM</label>
                                 <select
-                                    value={editForm.REGISTRO_SIM === true ? 'true' : editForm.REGISTRO_SIM === false ? 'false' : ''}
+                                    value={editForm.REGISTRO_SIM === true ? 'LLEGO' : editForm.REGISTRO_SIM === false ? 'NO LLEGO' : editForm.REGISTRO_SIM || ''}
                                     onChange={e => setEditForm({ ...editForm, REGISTRO_SIM: e.target.value })}
                                     style={{ width: '100%', padding: '0.5rem' }}
                                 >
                                     <option value="">(Seleccionar)</option>
-                                    <option value="true">VERDADERO</option>
-                                    <option value="false">FALSO</option>
+                                    <option value="LLEGO">LLEGO</option>
+                                    <option value="NO LLEGO">NO LLEGO</option>
                                 </select>
                             </div>
                             <div style={{ marginBottom: '1rem' }}>

@@ -38,10 +38,7 @@ export default function RegistroSIMUpdate() {
     useEffect(() => {
         // 1. Filter pending (REGISTRO_SIM is null/false)
         const pending = sales.filter(s =>
-            s.REGISTRO_SIM === null ||
-            s.REGISTRO_SIM === '' ||
-            s.REGISTRO_SIM === undefined ||
-            s.REGISTRO_SIM === false
+            s.REGISTRO_SIM !== 'LLEGO' && s.REGISTRO_SIM !== true && String(s.REGISTRO_SIM).toUpperCase() !== 'TRUE'
         );
         setPendingSales(pending);
 
@@ -203,8 +200,8 @@ export default function RegistroSIMUpdate() {
                                         <div style={{ fontSize: '0.9rem', fontFamily: 'monospace' }}>{scanResult.data.ICCID}</div>
                                     </div>
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                                        <button onClick={() => handleUpdateRegistroSIM(scanResult.data.NUMERO, scanResult.data.ICCID, true)} className="btn-primary" style={{ background: '#10b981' }}>✓ VERDADERO</button>
-                                        <button onClick={() => handleUpdateRegistroSIM(scanResult.data.NUMERO, scanResult.data.ICCID, false)} className="btn-primary" style={{ background: '#ef4444' }}>✗ FALSO</button>
+                                        <button onClick={() => handleUpdateRegistroSIM(scanResult.data.NUMERO, scanResult.data.ICCID, "LLEGO")} className="btn-primary" style={{ background: '#10b981' }}>✓ LLEGO</button>
+                                        <button onClick={() => handleUpdateRegistroSIM(scanResult.data.NUMERO, scanResult.data.ICCID, "NO LLEGO")} className="btn-primary" style={{ background: '#ef4444' }}>✗ NO LLEGO</button>
                                     </div>
                                     <button onClick={closeScanResult} className="btn-secondary" style={{ width: '100%' }}>Cancelar</button>
                                 </>
@@ -227,8 +224,8 @@ export default function RegistroSIMUpdate() {
                             <div style={{ marginBottom: '1rem' }}><strong>Número:</strong> {editingRecord.NUMERO}</div>
                             <div style={{ marginBottom: '1.5rem' }}><small>{editingRecord.ICCID}</small></div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                                <button onClick={() => handleUpdateRegistroSIM(editingRecord.NUMERO, editingRecord.ICCID, true)} className="btn-primary" style={{ background: '#10b981' }}>✓ VERDADERO</button>
-                                <button onClick={() => handleUpdateRegistroSIM(editingRecord.NUMERO, editingRecord.ICCID, false)} className="btn-primary" style={{ background: '#ef4444' }}>✗ FALSO</button>
+                                <button onClick={() => handleUpdateRegistroSIM(editingRecord.NUMERO, editingRecord.ICCID, "LLEGO")} className="btn-primary" style={{ background: '#10b981' }}>✓ LLEGO</button>
+                                <button onClick={() => handleUpdateRegistroSIM(editingRecord.NUMERO, editingRecord.ICCID, "NO LLEGO")} className="btn-primary" style={{ background: '#ef4444' }}>✗ NO LLEGO</button>
                             </div>
                             <button onClick={() => setEditingRecord(null)} className="btn-secondary" style={{ width: '100%' }}>Cancelar</button>
                         </div>

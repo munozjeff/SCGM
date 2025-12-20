@@ -24,6 +24,11 @@ export const VALID_NOVEDAD_GESTION = [
     "SIN CONTACTO",
     "NO LLEGO"
 ];
+
+export const VALID_REGISTRO_SIM = [
+    "LLEGO",
+    "NO LLEGO"
+];
 // ----------------------------
 
 /**
@@ -124,6 +129,21 @@ const normalizeNovedad = (val) => {
     return map[str] || str;
 };
 
+const normalizeRegistroSim = (val) => {
+    if (val === "" || val === null || val === undefined) return "";
+
+    // Check if it's already a valid value
+    if (VALID_REGISTRO_SIM.includes(val)) return val;
+
+    const str = removeAccents(String(val)).trim().toUpperCase();
+
+    // Map common boolean-like values
+    if (["SI", "TRUE", "VERDADERO", "LLEGO", "YES"].includes(str)) return "LLEGO";
+    if (["NO", "FALSE", "FALSO", "NO LLEGO"].includes(str)) return "NO LLEGO";
+
+    return str;
+};
+
 export const updateIncome = async (month, updates) => {
     const summary = { updated: 0, skipped: 0, errors: [] };
 
@@ -141,7 +161,7 @@ export const updateIncome = async (month, updates) => {
         }
 
         const updateData = {};
-        if (item.REGISTRO_SIM !== undefined) updateData.REGISTRO_SIM = item.REGISTRO_SIM;
+        if (item.REGISTRO_SIM !== undefined) updateData.REGISTRO_SIM = normalizeRegistroSim(item.REGISTRO_SIM);
         if (item.FECHA_INGRESO) updateData.FECHA_INGRESO = normalizeDate(item.FECHA_INGRESO);
         // Clean ICCID
         if (item.ICCID !== undefined) updateData.ICCID = item.ICCID ? removeAccents(String(item.ICCID)).trim() : "";
@@ -197,7 +217,7 @@ export const addSales = async (month, sales) => {
             // 2. Prepare Data Object with Defaults and Validations
             const newSale = {
                 NUMERO: String(sale.NUMERO),
-                REGISTRO_SIM: sale.REGISTRO_SIM === true, // Default to false if not strictly true
+                REGISTRO_SIM: normalizeRegistroSim(sale.REGISTRO_SIM) || "NO LLEGO", // Default to NO LLEGO
                 ICCID: sale.ICCID ? removeAccents(String(sale.ICCID)).trim() : "",
                 FECHA_INGRESO: normalizeDate(sale.FECHA_INGRESO) || "",
                 FECHA_ACTIVACION: normalizeDate(sale.FECHA_ACTIVACION) || "",
@@ -784,7 +804,7 @@ export const importSales = async (month, salesData) => {
             const saleToProcess = {
                 NUMERO: numero,
                 // Boolean conversion helpers
-                REGISTRO_SIM: rawSale.REGISTRO_SIM === 'SÍ' || rawSale.REGISTRO_SIM === true || rawSale.REGISTRO_SIM === 'TRUE',
+                REGISTRO_SIM: normalizeRegistroSim(rawSale.REGISTRO_SIM),
                 ICCID: rawSale.ICCID ? String(rawSale.ICCID) : undefined,
                 FECHA_INGRESO: normalizeDate(rawSale.FECHA_INGRESO) || undefined,
                 FECHA_ACTIVACION: normalizeDate(rawSale.FECHA_ACTIVACION) || undefined,

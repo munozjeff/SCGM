@@ -71,9 +71,13 @@ export default function DatabaseView() {
 
                 let values = [...new Set(allValues.filter(v => v != null && v !== ''))];
 
-                // Convert boolean values to SÍ/NO for REGISTRO_SIM
+                // Convert boolean values to LLEGO/NO LLEGO for REGISTRO_SIM
                 if (field === 'REGISTRO_SIM') {
-                    values = values.map(v => typeof v === 'boolean' ? (v ? 'SÍ' : 'NO') : v);
+                    values = values.map(v => {
+                        if (v === true) return 'LLEGO';
+                        if (v === false) return 'NO LLEGO';
+                        return v;
+                    });
                 }
 
                 unique[field] = values.sort();
@@ -131,9 +135,10 @@ export default function DatabaseView() {
             filtered = filtered.filter(sale => {
                 let value = sale[col];
 
-                // Convert REGISTRO_SIM boolean to SÍ/NO for comparison
-                if (col === 'REGISTRO_SIM' && typeof value === 'boolean') {
-                    value = value ? 'SÍ' : 'NO';
+                // Convert REGISTRO_SIM boolean to LLEGO/NO LLEGO for comparison
+                if (col === 'REGISTRO_SIM') {
+                    if (value === true) value = 'LLEGO';
+                    if (value === false) value = 'NO LLEGO';
                 }
 
                 // Multi-select filter (array)
@@ -180,8 +185,9 @@ export default function DatabaseView() {
             const row = {};
             columns.forEach(col => {
                 let val = sale[col];
-                if (col === 'REGISTRO_SIM' && typeof val === 'boolean') {
-                    val = val ? 'SÍ' : 'NO';
+                if (col === 'REGISTRO_SIM') {
+                    if (val === true) val = 'LLEGO';
+                    if (val === false) val = 'NO LLEGO';
                 }
                 row[col.replace(/_/g, ' ')] = val;
             });
@@ -546,9 +552,10 @@ export default function DatabaseView() {
                                                         {columns.map(col => {
                                                             let displayValue = sale[col];
 
-                                                            // Convert REGISTRO_SIM boolean to SÍ/NO
-                                                            if (col === 'REGISTRO_SIM' && typeof displayValue === 'boolean') {
-                                                                displayValue = displayValue ? 'SÍ' : 'NO';
+                                                            // Convert REGISTRO_SIM boolean to LLEGO/NO LLEGO
+                                                            if (col === 'REGISTRO_SIM') {
+                                                                if (displayValue === true) displayValue = 'LLEGO';
+                                                                if (displayValue === false) displayValue = 'NO LLEGO';
                                                             }
 
                                                             // Convert to string for display and title
