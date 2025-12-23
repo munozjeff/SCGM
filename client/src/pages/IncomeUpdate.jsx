@@ -472,19 +472,42 @@ export default function IncomeUpdate() {
             try {
                 const wb = XLSX.read(evt.target.result, { type: 'binary' });
                 const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+
                 const updates = data.map(row => {
-                    const numero = row['NUMERO'] || row['Numero'] || row['numero'];
-                    const registro = row['REGISTRO SIM'] || row['Registro Sim'] || row['REGISTRO_SIM'];
-                    const fecha = row['FECHA INGRESO'] || row['Fecha Ingreso'] || row['FECHA_INGRESO'];
-                    const iccid = row['ICCID'] || row['Iccid'] || row['ICID'] || row['icid'];
+                    // Normalize keys for this row
+                    const keys = Object.keys(row);
+                    const normalizedRow = {};
+
+                    keys.forEach(key => {
+                        // Create a normalized key: UPPERCASE, underscores replacing spaces, trimmed
+                        // Example: "Registro Sim " -> "REGISTRO_SIM"
+                        let normKey = String(key).trim().toUpperCase();
+                        // Replace multiple spaces/underscores with single underscore
+                        normKey = normKey.replace(/[\s_]+/g, '_');
+
+                        normalizedRow[normKey] = row[key];
+                    });
+
+                    // Extract values using normalized keys or fallbacks
+                    const numero = normalizedRow['NUMERO'];
+                    const registro = normalizedRow['REGISTRO_SIM'];
+                    const fecha = normalizedRow['FECHA_INGRESO'];
+                    const iccid = normalizedRow['ICCID'];
 
                     const obj = { NUMERO: String(numero || '').trim() };
-                    if (registro !== undefined && registro !== null && String(registro).trim() !== '') obj.REGISTRO_SIM = String(registro).trim();
-                    if (fecha !== undefined && fecha !== null && String(fecha).trim() !== '') obj.FECHA_INGRESO = String(fecha).trim();
-                    if (iccid !== undefined && iccid !== null && String(iccid).trim() !== '') obj.ICCID = String(iccid).trim();
+
+                    if (registro !== undefined && registro !== null && String(registro).trim() !== '') {
+                        obj.REGISTRO_SIM = String(registro).trim();
+                    }
+                    if (fecha !== undefined && fecha !== null && String(fecha).trim() !== '') {
+                        obj.FECHA_INGRESO = String(fecha).trim();
+                    }
+                    if (iccid !== undefined && iccid !== null && String(iccid).trim() !== '') {
+                        obj.ICCID = String(iccid).trim();
+                    }
 
                     return obj;
-                }).filter(r => r.NUMERO);
+                }).filter(r => r.NUMERO); // Ensure NUMERO exists and is not empty
 
                 const res = await updateIncome(month, updates);
                 setResult(res);
