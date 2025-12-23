@@ -51,7 +51,7 @@ const normalizeDate = (value) => {
         return value.toISOString().split('T')[0];
     }
 
-    // 2. If it's an Excel Serial Number (e.g. 45000)
+    // 2. If it's an Excel Serial Number (e.g. 45000) - passed as number
     if (typeof value === 'number' && value > 20000) {
         const date = new Date((value - 25569) * 86400 * 1000);
         return date.toISOString().split('T')[0];
@@ -60,6 +60,12 @@ const normalizeDate = (value) => {
     // 3. If it's a string
     const str = String(value).trim();
     if (!str) return undefined;
+
+    // Check if it's a numeric string that looks like an Excel serial (e.g. "45283")
+    if (/^\d{5}$/.test(str) && Number(str) > 20000) {
+        const date = new Date((Number(str) - 25569) * 86400 * 1000);
+        return date.toISOString().split('T')[0];
+    }
 
     // Try to detect DD/MM/YYYY or D/M/YYYY
     const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
