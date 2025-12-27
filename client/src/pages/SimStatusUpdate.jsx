@@ -28,10 +28,6 @@ export default function SimStatusUpdate() {
     const [filters, setFilters] = useState({
         NUMERO: '',
         ESTADO_SIM: [],  // Array for multi-select
-        NUMERO: '',
-        ESTADO_SIM: [],  // Array for multi-select
-        NUMERO: '',
-        ESTADO_SIM: [],  // Array for multi-select
         ICCID: '',
         FECHA_SERIALIZACION: ''
     });

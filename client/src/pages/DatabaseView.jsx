@@ -248,6 +248,8 @@ export default function DatabaseView() {
             return;
         }
 
+        setLoading(true); // Show spinner immediately
+
         const reader = new FileReader();
         reader.onload = async (evt) => {
             try {
@@ -274,10 +276,14 @@ export default function DatabaseView() {
                     return newRow;
                 });
 
+                // Hide spinner temporarily for confirm dialog if needed, or keep it.
+                // Keeping it is safer for state consistency, but confirm blocks UI.
+                // We will defer the confirm slightly if we want spinner to render first?
+                // For now, let's keep it simple.
+
                 if (confirm(`Se van a procesar ${normalizedData.length} registros en el mes ${selectedMonth}. ¿Continuar?`)) {
-                    setLoading(true);
+                    // setLoading(true); // Already set
                     const result = await importSales(selectedMonth, normalizedData);
-                    setLoading(false);
 
                     let message = `Importación completada.\n\n` +
                         `✅ Agregados: ${result.added}\n` +
@@ -289,16 +295,13 @@ export default function DatabaseView() {
                     }
 
                     alert(message);
-                    // Forzar recarga si es necesario, aunque el listener debería hacerlo
-                    // loadSales(selectedMonth); // El listener ya actualiza `sales`
                 }
-
             } catch (error) {
                 console.error("Error importing file:", error);
                 alert("Error al procesar el archivo: " + error.message);
-                setLoading(false);
             } finally {
-                e.target.value = ''; // Reset para permitir importar el mismo archivo de nuevo si se desea
+                setLoading(false); // Ensure loading is turned off
+                e.target.value = '';
             }
         };
         reader.readAsBinaryString(file);
