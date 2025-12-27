@@ -532,6 +532,7 @@ export const updateSimStatus = async (month, updates) => {
             updateData.ESTADO_SIM = normalized;
         }
         if (item.ICCID !== undefined) updateData.ICCID = item.ICCID ? removeAccents(String(item.ICCID)).trim() : "";
+        if (item.FECHA_SERIALIZACION) updateData.FECHA_SERIALIZACION = normalizeDate(item.FECHA_SERIALIZACION);
 
         if (Object.keys(updateData).length === 0) {
             summary.skipped++;

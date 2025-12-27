@@ -23,7 +23,7 @@ export default function DatabaseView() {
 
     // Todas las columnas
     const columns = [
-        'NUMERO', 'ICCID', 'REGISTRO_SIM', 'FECHA_INGRESO', 'FECHA_ACTIVACION',
+        'NUMERO', 'ICCID', 'REGISTRO_SIM', 'FECHA_INGRESO', 'FECHA_ACTIVACION', 'FECHA_SERIALIZACION',
         'ESTADO_SIM', 'TIPO_VENTA', 'NOVEDAD_EN_GESTION', 'CONTACTO_1', 'CONTACTO_2',
         'NOMBRE', 'SALDO', 'ABONO', 'FECHA_CARTERA', 'GUIA', 'ESTADO_GUIA',
         'TRANSPORTADORA', 'NOVEDAD', 'FECHA_HORA_REPORTE', 'DESCRIPCION_NOVEDAD'
@@ -31,7 +31,7 @@ export default function DatabaseView() {
 
     // Campos que usan selectores en lugar de inputs
     const selectFields = [
-        'REGISTRO_SIM', 'FECHA_INGRESO', 'FECHA_ACTIVACION', 'ESTADO_SIM',
+        'REGISTRO_SIM', 'FECHA_INGRESO', 'FECHA_ACTIVACION', 'FECHA_SERIALIZACION', 'ESTADO_SIM',
         'TIPO_VENTA', 'TRANSPORTADORA', 'NOVEDAD_EN_GESTION'
     ];
 

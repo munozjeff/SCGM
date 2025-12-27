@@ -22,13 +22,18 @@ export default function SimStatusUpdate() {
     const [itemsPerPage, setItemsPerPage] = useState(50);
 
     // Columns
-    const columns = ['NUMERO', 'ESTADO_SIM', 'ICCID'];
+    const columns = ['NUMERO', 'ESTADO_SIM', 'ICCID', 'FECHA_SERIALIZACION'];
     const selectFields = ['ESTADO_SIM'];
 
     const [filters, setFilters] = useState({
         NUMERO: '',
         ESTADO_SIM: [],  // Array for multi-select
-        ICCID: ''
+        NUMERO: '',
+        ESTADO_SIM: [],  // Array for multi-select
+        NUMERO: '',
+        ESTADO_SIM: [],  // Array for multi-select
+        ICCID: '',
+        FECHA_SERIALIZACION: ''
     });
     const [uniqueValues, setUniqueValues] = useState({});
     const [hasEmptyValues, setHasEmptyValues] = useState({});
@@ -123,7 +128,7 @@ export default function SimStatusUpdate() {
         setCurrentPage(1);
     };
 
-    const clearFilters = () => setFilters({ NUMERO: '', ESTADO_SIM: [], ICCID: '' });
+    const clearFilters = () => setFilters({ NUMERO: '', ESTADO_SIM: [], ICCID: '', FECHA_SERIALIZACION: '' });
 
     const handleEditClick = (record) => {
         setEditForm({ ...record });
@@ -132,7 +137,7 @@ export default function SimStatusUpdate() {
     };
 
     const handleNewRecord = () => {
-        setEditForm({ NUMERO: '', ESTADO_SIM: '', ICCID: '' });
+        setEditForm({ NUMERO: '', ESTADO_SIM: '', ICCID: '', FECHA_SERIALIZACION: '' });
         setIsNewRecord(true);
         setIsEditModalOpen(true);
     };
@@ -175,6 +180,11 @@ export default function SimStatusUpdate() {
                     if (iccid !== undefined && iccid !== null && String(iccid).trim() !== '') {
                         obj.ICCID = String(iccid).trim();
                     }
+
+                    const fechaSerializacion = row['FECHA_SERIALIZACION'] || row['FECHA_SENALIZACION'] || row['Fecha Seralizacion'];
+                    if (fechaSerializacion !== undefined && fechaSerializacion !== null) {
+                        obj.FECHA_SERIALIZACION = fechaSerializacion;
+                    }
                     return obj;
                 }).filter(r => r.NUMERO);
                 const res = await updateSimStatus(month, updates);
@@ -190,7 +200,7 @@ export default function SimStatusUpdate() {
     };
 
     const handleDownloadTemplate = () => {
-        downloadTemplate(['NUMERO', 'ESTADO_SIM', 'ICCID'], 'Plantilla_Estado_SIM');
+        downloadTemplate(['NUMERO', 'ESTADO_SIM', 'ICCID', 'FECHA_SERIALIZACION'], 'Plantilla_Estado_SIM');
     };
 
     // Pagination Logic
@@ -262,6 +272,7 @@ export default function SimStatusUpdate() {
                                     <td style={{ padding: '0.6rem' }}>{item.NUMERO}</td>
                                     <td style={{ padding: '0.6rem' }}>{item.ESTADO_SIM}</td>
                                     <td style={{ padding: '0.6rem' }}>{item.ICCID || '-'}</td>
+                                    <td style={{ padding: '0.6rem' }}>{item.FECHA_SERIALIZACION || '-'}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -354,6 +365,10 @@ export default function SimStatusUpdate() {
                             <div style={{ marginBottom: '1.5rem' }}>
                                 <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>ICCID</label>
                                 <input value={editForm.ICCID || ''} onChange={e => setEditForm({ ...editForm, ICCID: e.target.value })} style={{ width: '100%', padding: '0.5rem', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid var(--glass-border)' }} />
+                            </div>
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Fecha Serialización</label>
+                                <input type="date" value={editForm.FECHA_SERIALIZACION || ''} onChange={e => setEditForm({ ...editForm, FECHA_SERIALIZACION: e.target.value })} style={{ width: '100%', padding: '0.5rem', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid var(--glass-border)' }} />
                             </div>
                             <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
                                 <button type="button" onClick={() => setIsEditModalOpen(false)} className="btn-secondary" disabled={loading}>Cancelar</button>
